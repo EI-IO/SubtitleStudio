@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SubtitleStudio.App.Views.StyleView"
+             FontFamily="Microsoft YaHei">
+  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <StackPanel Orientation="Horizontal" Spacing="16" Margin="10,0" VerticalAlignment="Center">
+
+      <!-- 字体 / 字号 / 滑杆 -->
+      <StackPanel Orientation="Horizontal" Spacing="6" Height="32">
+        <TextBlock Text="字体" Foreground="#9BA3B4" FontSize="12" VerticalAlignment="Center" Width="26"
+                   TextAlignment="Right" />
+        <ComboBox ItemsSource="{Binding Fonts}" SelectedItem="{Binding SelectedFont}"
+                  Width="172" Height="28" FontSize="12" Padding="8,0"
+                  VerticalAlignment="Center" VerticalContentAlignment="Center" />
+        <TextBlock Text="字号" Margin="8,0,0,0" Foreground="#9BA3B4" FontSize="12"
+                   VerticalAlignment="Center" Width="26" TextAlignment="Right" />
+        <NumericUpDown Value="{Binding FontSizeValue}" Minimum="12" Maximum="200" Increment="2"
+                       FormatString="0" Width="112" Height="28" FontSize="12" Padding="6,0"
+                       VerticalAlignment="Center" VerticalContentAlignment="Center"
+                       ToolTip.Tip="字号（像素，1080p 基准）" />
+        <Slider Value="{Binding FontSize}" Minimum="24" Maximum="140" Width="88" Height="20"
+                VerticalAlignment="Center" />
+      </StackPanel>
+
+      <Border Width="1" Background="#2A2A31" Margin="0,4" />
+
+      <CheckBox Content="加粗" IsChecked="{Binding Bold}" Foreground="#C7D0E0" FontSize="12"
+                VerticalAlignment="Center" Height="28" />
+
+      <Border Width="1" Background="#2A2A31" Margin="0,4" />
+
+      <StackPanel Orientation="Horizontal" Spacing="6" Height="32">
+        <TextBlock Text="文字颜色" Foreground="#9BA3B4" FontSize="12" VerticalAlignment="Center" />
+        <Button Width="22" Height="20" Padding="0" CornerRadius="3" BorderThickness="1" BorderBrush="#3A3A44"
+                Background="{Binding PrimaryBrush}" VerticalAlignment="Center" ToolTip.Tip="打开调色板">
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <ColorPicker Color="{Binding PrimaryColor, Mode=TwoWay}" Width="300" Height="330"
+                           IsAlphaEnabled="True" IsColorPaletteVisible="True" />
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+        <TextBox Text="{Binding PrimaryHex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                 Width="96" Height="28" FontSize="11.5" Padding="6,0" MinHeight="0"
+                 VerticalContentAlignment="Center" FontFamily="Consolas" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="6" Height="32">
+        <TextBlock Text="描边颜色" Foreground="#9BA3B4" FontSize="12" VerticalAlignment="Center" />
+        <Button Width="22" Height="20" Padding="0" CornerRadius="3" BorderThickness="1" BorderBrush="#3A3A44"
+                Background="{Binding OutlineBrush}" VerticalAlignment="Center" ToolTip.Tip="打开调色板">
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <ColorPicker Color="{Binding OutlineColor, Mode=TwoWay}" Width="300" Height="330"
+                           IsAlphaEnabled="True" IsColorPaletteVisible="True" />
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+        <TextBox Text="{Binding OutlineHex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                 Width="96" Height="28" FontSize="11.5" Padding="6,0" MinHeight="0"
+                 VerticalContentAlignment="Center" FontFamily="Consolas" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <Border Width="1" Background="#2A2A31" Margin="0,4" />
+
+      <StackPanel Orientation="Horizontal" Spacing="6" Height="32">
+        <TextBlock Text="描边宽度" Foreground="#9BA3B4" FontSize="12" VerticalAlignment="Center" />
+        <Slider Value="{Binding OutlineWidth}" Minimum="0" Maximum="12" Width="84" Height="20"
+                VerticalAlignment="Center" />
+        <TextBlock Text="{Binding OutlineWidth, StringFormat='{}{0:0.0}'}" Foreground="#C7D0E0" FontSize="12"
+                   Width="26" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="6" Height="32">
+        <TextBlock Text="底部边距" Foreground="#9BA3B4" FontSize="12" VerticalAlignment="Center" />
+        <Slider Value="{Binding MarginBottom}" Minimum="0" Maximum="300" Width="92" Height="20"
+                VerticalAlignment="Center" />
+        <TextBlock Text="{Binding MarginBottom, StringFormat='{}{0:0}'}" Foreground="#C7D0E0" FontSize="12"
+                   Width="26" VerticalAlignment="Center" />
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

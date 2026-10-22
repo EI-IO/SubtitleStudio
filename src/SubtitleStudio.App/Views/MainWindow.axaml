@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
+        x:Class="SubtitleStudio.App.Views.MainWindow"
+        Title="Subtitle Studio — 音轨提取 · 语音识别 · 字幕生成"
+        Width="1380" Height="800"
+        MinWidth="960" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#151518"
+        FontFamily="Microsoft YaHei">
+
+  <DockPanel>
+
+    <!-- 底部状态条：文件名 / 当前任务或错误 / 进度 / 识别模型 -->
+    <Border DockPanel.Dock="Bottom" Background="#1C1C21" Padding="12,4" BorderBrush="#2A2A31" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+        <TextBlock Text="{Binding Media.DisplayName, FallbackValue=未加载文件}" Foreground="#7F8798"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+
+        <Panel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
+          <TextBlock Text="{Binding BusyText}" Foreground="#C7D0E0"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                     IsVisible="{Binding !HasError}" />
+          <Border Background="#3A1B1B" BorderBrush="#6B2B2B" BorderThickness="1" CornerRadius="3"
+                  Padding="7,1" HorizontalAlignment="Left" Cursor="Hand"
+                  IsVisible="{Binding HasError}" PointerPressed="OnErrorClick">
+            <ToolTip.Tip>
+              <StackPanel Spacing="4" MaxWidth="560">
+                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" FontSize="11.5" />
+                <TextBlock Text="点击复制完整错误" FontSize="10.5" Foreground="#8A8A93" />
+              </StackPanel>
+            </ToolTip.Tip>
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <TextBlock Text="⚠" Foreground="#FF9A9A" FontSize="11" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ErrorShort}" Foreground="#FFBEBE" FontSize="11.5"
+                         VerticalAlignment="Center" MaxWidth="460" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+        </Panel>
+
+        <ProgressBar Grid.Column="2" IsVisible="{Binding IsBusy}" Value="{Binding Progress}" Maximum="1"
+                     Width="170" Height="6" Margin="0,0,12,0" VerticalAlignment="Center" />
+        <Button Grid.Column="3" Content="以管理员重启" FontSize="11" Padding="8,1" Margin="0,0,12,0"
+                VerticalAlignment="Center" Click="OnElevateClick"
+                IsVisible="{Binding ErrorIsPermission}"
+                ToolTip.Tip="当文件写入被权限/受控文件夹拦住时，用管理员身份重新打开本程序" />
+        <TextBlock Grid.Column="4" Text="{Binding AudioInfo}" Foreground="#6F7686" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- ClipToBounds：Dock 面板内容溢出时会盖住状态栏，必须裁掉 -->
+    <dock:DockControl Layout="{Binding Layout}" ClipToBounds="True" />
+
+  </DockPanel>
+</Window>

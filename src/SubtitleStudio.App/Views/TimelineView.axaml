@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:SubtitleStudio.App.Controls"
+             x:Class="SubtitleStudio.App.Views.TimelineView"
+             FontFamily="Microsoft YaHei">
+  <DockPanel Margin="6,4">
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" Margin="0,0,0,4">
+      <Button Content="打开文件" Click="OnOpenClick" Padding="10,3" FontSize="12" />
+      <Button Grid.Column="1" Content="重新识别" Click="OnRetranscribeClick" Margin="6,0,0,0" Padding="10,3" FontSize="12" />
+
+      <!-- 模型菜单：本地模型（二级）/ 硅基流动 / 天翼星辰 -->
+      <Button Grid.Column="2" x:Name="ModelButton" Click="OnModelClick" Margin="6,0,0,0" Padding="10,3" FontSize="12"
+              ToolTip.Tip="选择识别模型或云端通道">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{Binding State.ModelLabel}" VerticalAlignment="Center" />
+          <Path Data="M0,0 L4,4 L8,0 Z" Fill="#9FB4CD" VerticalAlignment="Center" Margin="0,1,0,0" />
+        </StackPanel>
+      </Button>
+
+      <!-- 播放头时间：跟着模型菜单 -->
+      <TextBlock Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="11.5"
+                 Foreground="#8FA0B8" FontFamily="Consolas"
+                 Text="{Binding State.CurrentTime, StringFormat='{}播放头 {0:0.00}s'}" />
+
+      <!-- 识别结果 / 语言提示 -->
+      <TextBlock Grid.Column="4" Margin="12,0,10,0" VerticalAlignment="Center" FontSize="11.5"
+                 Foreground="#9FB4CD" TextTrimming="CharacterEllipsis"
+                 Text="{Binding State.Status}" />
+
+      <!-- 识别进度：圆环 + 百分比 + 停止 -->
+      <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="7" Margin="0,0,10,0"
+                  VerticalAlignment="Center" IsVisible="{Binding State.IsBusy}">
+        <controls:RingProgress Width="20" Height="20" VerticalAlignment="Center"
+                               Value="{Binding State.Progress}" />
+        <TextBlock Text="{Binding State.BusyText}" FontSize="11" Foreground="#8FA0B8"
+                   VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding State.Progress, StringFormat='{}{0:P0}'}" FontSize="11"
+                   Foreground="#9FB4CD" VerticalAlignment="Center" Width="34" />
+        <Button Content="■" Click="OnCancelRecognition" Padding="6,1" FontSize="10"
+                VerticalAlignment="Center" Foreground="#E06A6A"
+                ToolTip.Tip="停止识别（立刻中断当前音轨）" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6">
+        <Button Content="{Binding State.PlayText}" Click="OnPlayPause" Padding="10,2" FontSize="12"
+                ToolTip.Tip="播放 / 暂停（只放勾选的音轨）" />
+        <Button Content="−" Click="OnZoomOut" Padding="8,2" FontSize="12" ToolTip.Tip="缩小" />
+        <Button Content="+" Click="OnZoomIn" Padding="8,2" FontSize="12" ToolTip.Tip="放大" />
+      </StackPanel>
+    </Grid>
+
+    <controls:TimelineControl x:Name="Timeline" State="{Binding State}" />
+
+  </DockPanel>
+</UserControl>

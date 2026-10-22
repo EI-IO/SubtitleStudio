@@ -1,0 +1,24 @@
+<Project>
+
+  <!-- 三个项目共用的编译设置：改一处即可，避免 csproj 里互相漂移 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Version>1.1.0</Version>
+    <Product>Subtitle Studio</Product>
+    <Company>Subtitle Studio</Company>
+    <NeutralLanguage>zh-Hans</NeutralLanguage>
+
+    <Deterministic>true</Deterministic>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- 生成的可执行文件统一输出名字，publish.ps1 依赖它 -->
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>

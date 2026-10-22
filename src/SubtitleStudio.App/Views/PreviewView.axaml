@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:SubtitleStudio.App.Controls"
+             x:Class="SubtitleStudio.App.Views.PreviewView"
+             FontFamily="Microsoft YaHei">
+  <DockPanel Margin="8,4">
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+      <!-- 清晰度档位 + 导出画布尺寸提示 -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="清晰度" FontSize="11.5" Foreground="#9BA3B4" VerticalAlignment="Center" />
+        <ComboBox MinWidth="118" FontSize="11.5" VerticalAlignment="Center"
+                  ItemsSource="{Binding State.QualityOptions}"
+                  SelectedItem="{Binding State.Quality}"
+                  ToolTip.Tip="决定导出画布的像素尺寸" />
+        <TextBlock Text="{Binding State.ExportLayoutHint}" FontSize="11" Foreground="#7C8494"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <TextBlock Text="{Binding State.ExportText}" FontSize="11.5" Foreground="#9BA3B4" VerticalAlignment="Center" />
+        <ProgressBar IsVisible="{Binding State.IsExporting}" Value="{Binding State.ExportProgress}"
+                     Maximum="1" Width="120" Height="8" />
+
+        <SplitButton Click="OnExportDefault" Background="#3D6FD8" Foreground="White" Padding="12,4"
+                     ToolTip.Tip="导出（默认透明视频 WebM）">
+          <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+            <!-- 常用「导出/上传」图标：方框 + 向上箭头 -->
+            <Path Fill="White"
+                  Data="M2,2 L7,2 L7,4 L4,4 L4,14 L16,14 L16,11 L18,11 L18,16 L2,16 Z M11,0 L16,5.6 L13.4,5.6 L13.4,11 L8.6,11 L8.6,5.6 L6,5.6 Z" />
+          </Viewbox>
+          <SplitButton.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="透明视频 · WebM (VP9 alpha)" Tag="webm" Click="OnExportOverlay" />
+              <MenuItem Header="透明视频 · MOV (ProRes 4444)" Tag="mov" Click="OnExportOverlay" />
+              <MenuItem Header="视频 · MP4 (H.264，黑底)" Tag="mp4" Click="OnExportOverlay" />
+              <Separator />
+              <MenuItem Header="字幕 · SRT" Tag="srt" Click="OnExportSubtitle" />
+              <MenuItem Header="字幕 · ASS（带样式）" Tag="ass" Click="OnExportSubtitle" />
+              <MenuItem Header="字幕 · WebVTT" Tag="vtt" Click="OnExportSubtitle" />
+            </MenuFlyout>
+          </SplitButton.Flyout>
+        </SplitButton>
+      </StackPanel>
+    </Grid>
+
+    <Border Background="#101013" CornerRadius="4" ClipToBounds="True">
+      <Panel>
+        <controls:Checkerboard />
+        <Image Source="{Binding State.PreviewImage}" Stretch="Uniform" />
+        <TextBlock Text="识别完成后这里会显示字幕效果" Foreground="#5C6272" FontSize="12"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   IsVisible="{Binding !State.HasCues}" />
+      </Panel>
+    </Border>
+
+  </DockPanel>
+</UserControl>

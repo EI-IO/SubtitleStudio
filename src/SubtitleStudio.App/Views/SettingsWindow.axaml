@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SubtitleStudio.App.Views.SettingsWindow"
+        Title="设置"
+        Width="720" Height="620"
+        MinWidth="640" MinHeight="520"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="*,Auto" Margin="16">
+    <TabControl Grid.Row="0">
+      <TabItem Header="硅基流动">
+        <StackPanel Spacing="10" Margin="4,12,4,4">
+          <TextBlock Text="OpenAI 兼容接口，识别走 /audio/transcriptions。" Opacity="0.65" />
+          <TextBlock Text="接口地址" FontSize="12" Opacity="0.7" />
+          <TextBox x:Name="SiliconBaseUrl" IsReadOnly="True" />
+
+          <TextBlock Text="API Key" FontSize="12" Opacity="0.7" />
+          <TextBox x:Name="SiliconKey" PasswordChar="•" Watermark="sk-..." />
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button x:Name="FetchSiliconButton" Content="获取模型列表" Click="OnFetchSilicon" />
+            <TextBlock x:Name="SiliconStatus" VerticalAlignment="Center" Opacity="0.7" Text="填好 Key 后点左边按钮" />
+          </StackPanel>
+
+          <TextBlock Text="识别模型" FontSize="12" Opacity="0.7" />
+          <ComboBox x:Name="SiliconModel" HorizontalAlignment="Stretch" />
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="天翼星辰">
+        <StackPanel Spacing="10" Margin="4,12,4,4">
+          <TextBlock Text="短语音识别（HTTPS，只能识别 1 分钟以内的语音；更长的音频程序会自动切片）。只用 API Key，不需要 AppID / AppKey。" Opacity="0.65" TextWrapping="Wrap" />
+          <TextBlock Text="接入点" FontSize="12" Opacity="0.7" />
+          <TextBox x:Name="TeleAiUrl" IsReadOnly="True" />
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="API Key（sk- 开头）" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="TeleAiApiKey" PasswordChar="•" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button x:Name="TestTeleAiButton" Content="测试连接" Click="OnTestTeleAi" />
+            <TextBlock x:Name="TeleAiStatus" VerticalAlignment="Center" Opacity="0.7" Text="填好 Key 后点这里发一段静音试一下" />
+          </StackPanel>
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="本地模型">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="4,12,4,4">
+          <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="模型放在 models 目录，缺哪个下哪个。支持多镜像，失败自动换源。" Opacity="0.65" TextWrapping="Wrap" />
+            <TextBlock x:Name="ModelDirText" FontSize="12" Opacity="0.55" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <ScrollViewer Grid.Row="1" Margin="0,8,0,8">
+            <StackPanel x:Name="ModelList" Spacing="6" />
+          </ScrollViewer>
+
+          <StackPanel Grid.Row="2" Spacing="6">
+            <ProgressBar x:Name="DownloadBar" Height="6" Minimum="0" Maximum="1" />
+            <TextBlock x:Name="DownloadStatus" FontSize="12" Opacity="0.7" />
+          </StackPanel>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+      <Button Content="取消" Click="OnCancel" MinWidth="90" />
+      <Button Content="保存" Click="OnSave" MinWidth="90" Classes="accent" />
+    </StackPanel>
+  </Grid>
+</Window>

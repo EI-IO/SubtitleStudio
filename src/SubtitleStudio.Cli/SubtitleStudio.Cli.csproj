@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 公共属性（目标框架、Nullable、语言版本等）见 Directory.Build.props -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>SubtitleStudio.Cli</RootNamespace>
+    <AssemblyName>SubtitleStudio.Cli</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SubtitleStudio.Core\SubtitleStudio.Core.csproj" />
+  </ItemGroup>
+
+</Project>
