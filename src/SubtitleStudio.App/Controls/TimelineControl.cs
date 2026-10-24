@@ -86,7 +86,8 @@ public sealed partial class TimelineControl : Control
         if (e.PropertyName is nameof(AppState.CurrentTime) or nameof(AppState.ScrollSeconds)
             or nameof(AppState.PixelsPerSecond) or nameof(AppState.Waveform) or nameof(AppState.Cues)
             or nameof(AppState.SelectedCue) or nameof(AppState.Media) or nameof(AppState.Style)
-            or nameof(AppState.SelectedTrack) or nameof(AppState.Tracks))
+            or nameof(AppState.SelectedTrack) or nameof(AppState.Tracks)
+            or nameof(AppState.MediaTitle))
         {
             InvalidateVisual();
         }

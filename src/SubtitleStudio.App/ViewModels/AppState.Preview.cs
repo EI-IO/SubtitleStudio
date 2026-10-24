@@ -1,5 +1,6 @@
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using SubtitleStudio.App.Services;
 using SubtitleStudio.Core.Export;
 
 namespace SubtitleStudio.App.ViewModels;
@@ -12,6 +13,9 @@ public sealed partial class AppState
 
     private SubtitleLayerRenderer? _renderer;
 
+    /// <summary>渲染器的画布尺寸；换了分辨率不同的视频要重建渲染器。</summary>
+    private (int W, int H) _rendererSize;
+
     public void Initialize()
     {
         _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
@@ -20,18 +24,21 @@ public sealed partial class AppState
             _previewTimer!.Stop();
             RenderPreview();
         };
-        _renderer = new SubtitleLayerRenderer(PreviewWidth, PreviewHeight);
+        // 渲染器不在建了：RenderPreview 会按视频分辨率懒建/重建
 
         // 从磁盘读到的设置要落到界面上（上次选的后端、本地模型）
+        // 自定义提供商可能已被删（配置在别的机器上改过），指着空气就回退到本地
+        if (Settings.Backend == Core.Asr.AsrBackend.Custom && Settings.ActiveCustomProvider() is null)
+            Settings.Backend = Core.Asr.AsrBackend.Local;
         Backend = Settings.Backend;
         RefreshModels();
         OnPropertyChanged(nameof(ModelLabel));
-        AudioInfo = Backend switch
-        {
-            Core.Asr.AsrBackend.Local => "本地 Whisper · " + (SelectedModel?.Display ?? "自动"),
-            Core.Asr.AsrBackend.SiliconFlow => "硅基流动 · " + ShortModel(Settings.SiliconFlowModel),
-            _ => "天翼星辰 · 短语音识别"
-        };
+        AudioInfo = DescribeBackend();
+
+        // 上次退出时没下完的模型接着续传（.part 还在），进度在设置窗口里看
+        var resumed = ModelDownloads.ResumeIncomplete();
+        if (resumed > 0)
+            Status = Loc.T("Status.ResumeDownloads", resumed);
 
         RenderPreview();
     }
@@ -58,8 +65,13 @@ public sealed partial class AppState
 
     private void RenderPreview()
     {
-        if (_renderer is null)
-            return;
+        // 画布跟着视频分辨率走：尺寸变了就重建渲染器（Initialize 里那只建一次，换视频后对不上）
+        var size = (PreviewWidth, PreviewHeight);
+        if (_renderer is null || _rendererSize != size)
+        {
+            _renderer = new SubtitleLayerRenderer(size.Item1, size.Item2);
+            _rendererSize = size;
+        }
 
         try
         {
@@ -86,11 +98,15 @@ public sealed partial class AppState
         ScrollSeconds = 0;
     }
 
-    /// <summary>跳到某个时间点，并选中该处的字幕。</summary>
+    /// <summary>跳到某个时间点，并选中该处的字幕；正在播放时声音也会跟着跳过去。</summary>
     public void SeekTo(double seconds)
     {
         var max = Math.Max(0, Duration - 0.01);
         CurrentTime = Math.Clamp(seconds, 0, max);
+
+        // 播放中拖红线必须同步播放位置，否则播放定时器每 80ms 就把播放头拉回原处
+        if (_playback.IsPlaying && CurrentTime < _playback.Duration)
+            _playback.Position = CurrentTime;
 
         // 只认「入点已过、未过出点」的那条，避免跳进空隙时选中上一条
         SelectedCue = Cues.FirstOrDefault(c => CurrentTime >= c.Start && CurrentTime <= c.End);

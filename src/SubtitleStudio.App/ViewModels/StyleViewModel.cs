@@ -11,8 +11,8 @@ namespace SubtitleStudio.App.ViewModels;
 /// <summary>样式面板：字体 / 字号 / 颜色 / 描边，改动直接写回 <see cref="AppState.Style"/>。</summary>
 public sealed partial class StyleViewModel : Tool
 {
-    /// <summary>字体下拉里最后一项：导入本地字体文件。</summary>
-    public const string ImportFontItem = "＋ 导入其他字体…";
+    /// <summary>字体下拉里最后一项的文案（导入本地字体文件）；切语言时这一项跟着换。</summary>
+    private string _importFontItem = Loc.T("Style.ImportFont");
 
     private static readonly string[] BuiltInFonts =
     {
@@ -36,7 +36,7 @@ public sealed partial class StyleViewModel : Tool
                 Fonts.Add(family);
         }
 
-        Fonts.Add(ImportFontItem);
+        Fonts.Add(_importFontItem);
         SyncFromStyle();
     }
 
@@ -75,7 +75,10 @@ public sealed partial class StyleViewModel : Tool
 
     partial void OnSelectedFontChanged(string value)
     {
-        if (value == ImportFontItem)
+        if (_syncing)
+            return;
+
+        if (value == _importFontItem)
         {
             _ = ImportFontAsync();
             return;
@@ -99,7 +102,7 @@ public sealed partial class StyleViewModel : Tool
         if (family is null)
         {
             SelectedFont = previous;
-            _state.ReportError("字体导入失败：读不出这个文件的字体信息，换一个 .ttf / .otf 试试");
+            _state.ReportError(Loc.T("Error.ImportFont", Loc.T("Error.ImportFontDetail")));
             return;
         }
 
@@ -107,6 +110,24 @@ public sealed partial class StyleViewModel : Tool
             Fonts.Insert(Math.Max(0, Fonts.Count - 1), family);
 
         SelectedFont = family;
+    }
+
+    /// <summary>语言切换后把「导入其他字体…」这一项换成新文案。</summary>
+    public void ApplyLanguage()
+    {
+        var index = Fonts.IndexOf(_importFontItem);
+        var wasSelected = SelectedFont == _importFontItem;
+
+        _importFontItem = Loc.T("Style.ImportFont");
+
+        if (index >= 0)
+        {
+            _syncing = true;
+            Fonts[index] = _importFontItem;
+            if (wasSelected)
+                SelectedFont = Fonts[Math.Max(0, index - 1)];
+            _syncing = false;
+        }
     }
 
     partial void OnFontSizeChanged(double value)

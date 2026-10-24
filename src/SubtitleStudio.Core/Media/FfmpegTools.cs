@@ -95,16 +95,41 @@ public static class FfmpegTools
         return Process.Start(psi) ?? throw new InvalidOperationException($"无法启动 {exe}");
     }
 
-    /// <summary>运行并返回 (exitCode, stderr)。</summary>
+    /// <summary>运行并返回 (exitCode, stderr)。取消时杀掉进程，不留孤儿 ffmpeg。</summary>
     public static async Task<(int Code, string StdErr)> RunAsync(
         string exe,
         IEnumerable<string> args,
         CancellationToken cancellationToken = default)
     {
         using var process = Start(exe, args);
-        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        return (process.ExitCode, stderr);
+        // stderr 不带取消令牌：进程被杀后管道关闭，读取自然结束
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            try { await stderrTask.ConfigureAwait(false); } catch { /* 忽略 */ }
+            throw;
+        }
+
+        return (process.ExitCode, await stderrTask.ConfigureAwait(false));
+    }
+
+    /// <summary>尽力杀掉进程树（取消/失败收尾用），任何失败都吞掉。</summary>
+    public static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+            // 已经退出
+        }
     }
 
     public static async Task EnsureSuccessAsync(string exe, IEnumerable<string> args, CancellationToken ct = default)

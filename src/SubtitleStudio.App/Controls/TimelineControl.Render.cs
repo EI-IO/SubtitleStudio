@@ -41,12 +41,15 @@ public sealed partial class TimelineControl
         if (w <= 0 || h <= 0)
             return;
 
+        // 命中矩形随每次绘制重建：删掉音轨后旧条目不留存
+        _hitRects.Clear();
+
         context.FillRectangle(Background, new Rect(0, 0, w, h));
 
         var state = _hooked;
         if (state?.Media is null || state.Tracks.Count == 0)
         {
-            var hint = new FormattedText("把视频拖到这里，或点击「打开文件」",
+            var hint = new FormattedText(Services.Loc.T("Timeline.EmptyHint"),
                 CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 14, DimText);
             context.DrawText(hint, new Point((w - hint.Width) / 2, h / 2 - 10));
             return;
@@ -65,6 +68,30 @@ public sealed partial class TimelineControl
         }
 
         DrawPlayhead(context, state, h);
+        DrawDragHint(context);
+    }
+
+    /// <summary>拖动字幕块时在刻度尺下沿浮一个时间标签，拖到哪一眼看清。</summary>
+    private void DrawDragHint(DrawingContext context)
+    {
+        if (_dragCue is null || _mode is not (DragMode.MoveCue or DragMode.ResizeStart or DragMode.ResizeEnd))
+            return;
+
+        var text = new FormattedText(
+            $"{FormatTimePrecise(_dragCue.Start)} → {FormatTimePrecise(_dragCue.End)}",
+            CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 11, TextBrush);
+        var mid = (TimeToX(_dragCue.Start) + TimeToX(_dragCue.End)) / 2;
+        var x = Math.Clamp(mid - text.Width / 2 - 7, 2, Math.Max(2, Bounds.Width - text.Width - 16));
+        var chip = new Rect(x, RulerHeight + 3, text.Width + 14, text.Height + 6);
+
+        context.DrawRectangle(ChipBackground, null, chip, 4, 4);
+        context.DrawText(text, new Point(chip.X + 7, chip.Y + 3));
+    }
+
+    private static string FormatTimePrecise(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return $"{(int)ts.TotalMinutes:00}:{ts.Seconds:00}.{ts.Milliseconds / 10:00}";
     }
 
     private void DrawRuler(DrawingContext context, AppState state, double w)

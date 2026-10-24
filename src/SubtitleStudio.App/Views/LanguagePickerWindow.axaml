@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SubtitleStudio.App.Views.LanguagePickerWindow"
+        Title="{DynamicResource L.Lang.Picker.Title}"
+        Width="600" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="#151518"
+        FontFamily="Microsoft YaHei">
+
+  <StackPanel Margin="28,24" Spacing="14">
+    <TextBlock Text="{DynamicResource L.Lang.Picker.Heading}" FontSize="21" FontWeight="SemiBold" />
+    <TextBlock Text="{DynamicResource L.Lang.Picker.Hint}" Opacity="0.6" FontSize="12.5"
+               TextWrapping="Wrap" />
+    <!-- 平铺语言按钮：语言包多了自动换行，窗口高度跟着内容走 -->
+    <WrapPanel x:Name="LanguageButtons" Margin="0,6,0,0" />
+  </StackPanel>
+</Window>

@@ -12,13 +12,14 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon.png" />
+    <!-- 内置语言包随程序编译；lang/ 目录里的外部包运行时会自动合并 -->
+    <AvaloniaResource Include="Assets\lang\*.json" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.3.22" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Dock.Avalonia" Version="11.3.12.1" />
     <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.12.1" />

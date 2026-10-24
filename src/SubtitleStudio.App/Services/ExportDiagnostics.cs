@@ -13,17 +13,17 @@ public static class ExportDiagnostics
     public static Cause Diagnose(string directory)
     {
         if (string.IsNullOrWhiteSpace(directory))
-            return new Cause(directory, false, "没有指定目录");
+            return new Cause(directory, false, Loc.T("Export.Reason.NoDir"));
 
         if (!Directory.Exists(directory))
-            return new Cause(directory, false, "目录不存在");
+            return new Cause(directory, false, Loc.T("Export.Reason.Missing"));
 
         try
         {
             var probe = Path.Combine(directory, $".subtitle-studio-{Guid.NewGuid():N}.tmp");
             File.WriteAllText(probe, "ok");
             File.Delete(probe);
-            return new Cause(directory, false, "可写");
+            return new Cause(directory, false, Loc.T("Export.Reason.Writable"));
         }
         catch (Exception ex)
         {
@@ -37,17 +37,14 @@ public static class ExportDiagnostics
         if (IsControlledFolderAccessOn())
         {
             var looksProtected = LooksLikeProtectedFolder(directory);
-            return looksProtected
-                ? $"被 Windows「受控文件夹访问」拦住了（桌面/文档/图片等目录默认受保护）。"
-                    + "到「Windows 安全中心 → 病毒和威胁防护 → 勒索软件防护 → 受控文件夹访问」里允许本程序，或用管理员身份运行。"
-                : "Windows「受控文件夹访问」开着，写入可能被拦截。";
+            return Loc.T(looksProtected ? "Export.Reason.Controlled" : "Export.Reason.ControlledMaybe");
         }
 
         if (ex is UnauthorizedAccessException)
-            return "当前用户对这个目录没有写权限（ACL 限制），换个目录或以管理员身份运行。";
+            return Loc.T("Export.Reason.Acl");
 
         if (ex is IOException io && io.Message.Contains("disk", StringComparison.OrdinalIgnoreCase))
-            return "磁盘不可写（可能只读或已满）。";
+            return Loc.T("Export.Reason.Disk");
 
         return ex.Message;
     }

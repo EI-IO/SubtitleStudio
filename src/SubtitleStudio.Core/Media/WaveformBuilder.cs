@@ -49,7 +49,7 @@ public static class WaveformBuilder
             "-"
         }, redirectStdout: true);
 
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
         var stream = process.StandardOutput.BaseStream;
         var buffer = new byte[1 << 16];
         var leftover = 0;
@@ -58,37 +58,47 @@ public static class WaveformBuilder
         float curMin = 0f, curMax = 0f;
         var curCount = 0;
 
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var read = await stream.ReadAsync(buffer.AsMemory(leftover), cancellationToken).ConfigureAwait(false);
-            if (read <= 0)
-                break;
-
-            var total = leftover + read;
-            var usable = total - (total % 2);
-            for (var i = 0; i < usable; i += 2)
+            while (true)
             {
-                var sample = (short)(buffer[i] | (buffer[i + 1] << 8)) / 32768f;
-                if (sample < curMin) curMin = sample;
-                if (sample > curMax) curMax = sample;
-                samplesRead++;
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = await stream.ReadAsync(buffer.AsMemory(leftover), cancellationToken).ConfigureAwait(false);
+                if (read <= 0)
+                    break;
 
-                if (++curCount >= bucketSize)
+                var total = leftover + read;
+                var usable = total - (total % 2);
+                for (var i = 0; i < usable; i += 2)
                 {
-                    mins.Add(curMin);
-                    maxs.Add(curMax);
-                    curMin = curMax = 0f;
-                    curCount = 0;
+                    var sample = (short)(buffer[i] | (buffer[i + 1] << 8)) / 32768f;
+                    if (sample < curMin) curMin = sample;
+                    if (sample > curMax) curMax = sample;
+                    samplesRead++;
+
+                    if (++curCount >= bucketSize)
+                    {
+                        mins.Add(curMin);
+                        maxs.Add(curMax);
+                        curMin = curMax = 0f;
+                        curCount = 0;
+                    }
                 }
+
+                leftover = total - usable;
+                if (leftover > 0)
+                    buffer[0] = buffer[usable];
+
+                if (expectedBuckets > 0)
+                    progress?.Report(Math.Clamp((double)mins.Count / expectedBuckets, 0, 1));
             }
-
-            leftover = total - usable;
-            if (leftover > 0)
-                buffer[0] = buffer[usable];
-
-            if (expectedBuckets > 0)
-                progress?.Report(Math.Clamp((double)mins.Count / expectedBuckets, 0, 1));
+        }
+        catch (OperationCanceledException)
+        {
+            // 取消时杀掉 ffmpeg，长视频的解码不会留在后台空跑
+            FfmpegTools.TryKill(process);
+            try { await stderrTask.ConfigureAwait(false); } catch { /* 进程被杀后读取随之结束 */ }
+            throw;
         }
 
         if (curCount > 0)

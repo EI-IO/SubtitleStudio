@@ -30,7 +30,12 @@ public sealed class AudioPlayback : IDisposable
     }
 
     /// <summary>把指定音轨解码 + 混音到临时 wav；索引为空时唱第 0 条。</summary>
-    public async Task PrepareAsync(string mediaPath, IReadOnlyList<int> streamIndexes, CancellationToken cancellationToken)
+    /// <param name="maxSeconds">
+    /// 只解码前这么多秒（超长媒体整段解码出的临时 wav 动辄上 GB，预览播放没必要）。
+    /// null 表示整段解码。
+    /// </param>
+    public async Task PrepareAsync(string mediaPath, IReadOnlyList<int> streamIndexes,
+        CancellationToken cancellationToken, double? maxSeconds = null)
     {
         Stop();
         Release();
@@ -42,6 +47,10 @@ public sealed class AudioPlayback : IDisposable
         {
             "-hide_banner", "-y", "-i", mediaPath
         };
+
+        // -t 放在输出选项里：只解前 maxSeconds 秒
+        if (maxSeconds is { } cap && cap > 0)
+            args.AddRange(new[] { "-t", cap.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) });
 
         if (indexes.Count == 1)
         {
@@ -57,12 +66,12 @@ public sealed class AudioPlayback : IDisposable
         args.AddRange(new[] { "-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", temp });
 
         var ffmpeg = FfmpegTools.FfmpegPath
-                     ?? throw new InvalidOperationException("找不到 ffmpeg，无法播放音频");
+                     ?? throw new InvalidOperationException(Loc.T("Error.FfmpegMissing"));
         var (code, stderr) = await FfmpegTools.RunAsync(ffmpeg, args, cancellationToken);
         if (code != 0 || !File.Exists(temp))
         {
             TempWorkspace.TryDelete(temp);
-            throw new InvalidOperationException("打开音频失败：" + ProcessText.Tail(stderr));
+            throw new InvalidOperationException(Loc.T("Error.OpenAudio", ProcessText.Tail(stderr)));
         }
 
         _tempWav = temp;

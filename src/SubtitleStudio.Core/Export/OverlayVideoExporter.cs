@@ -177,7 +177,7 @@ public static class OverlayVideoExporter
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
+            FfmpegTools.TryKill(process);
             throw;
         }
         catch (Exception ex)
@@ -190,7 +190,7 @@ public static class OverlayVideoExporter
         }
 
         if (writeFailure is not null)
-            TryKill(process);
+            FfmpegTools.TryKill(process);
 
         await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
         try { await progressTask.ConfigureAwait(false); } catch { /* 进程结束时读取循环可能被取消 */ }
@@ -241,19 +241,6 @@ public static class OverlayVideoExporter
         catch
         {
             // 删不掉就留着，用户自己处理
-        }
-    }
-
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
-        }
-        catch
-        {
-            // 忽略
         }
     }
 }

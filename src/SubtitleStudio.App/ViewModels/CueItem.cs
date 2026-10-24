@@ -34,7 +34,8 @@ public sealed class CueItem : ObservableObject
         }
     }
 
-    public string TimeLabel => $"{Format(Model.Start)} → {Format(Model.End)}";
+    /// <summary>列表里只显示中点时间：起止都摆出来太挤，中点足够定位这条字幕在时间轴上的位置。</summary>
+    public string TimeLabel => Format((Model.Start + Model.End) / 2);
 
     public string Preview => Model.Text.Length <= 28 ? Model.Text : Model.Text[..28] + "…";
 

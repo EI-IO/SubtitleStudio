@@ -36,11 +36,12 @@ public static class SiliconFlowClient
                || lower.Contains("transcri");
     }
 
-    /// <summary>拉模型列表，只留语音识别相关的。</summary>
+    /// <summary>拉模型列表；audioOnly=true 时只留语音识别相关的（硅基流动用），自定义提供商传 false 全量返回。</summary>
     public static async Task<IReadOnlyList<RemoteModel>> ListModelsAsync(
         string baseUrl,
         string apiKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool audioOnly = true)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new InvalidOperationException("还没有填 API Key");
@@ -72,7 +73,7 @@ public static class SiliconFlowClient
                 ? t.GetString()
                 : null;
 
-            if (!LooksLikeAsr(id, type))
+            if (audioOnly && !LooksLikeAsr(id, type))
                 continue;
 
             result.Add(new RemoteModel(id, id));

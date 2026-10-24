@@ -18,7 +18,7 @@ public partial class PreviewView : UserControl
     private void OnExportDefault(object? sender, RoutedEventArgs e)
     {
         if (State is { } state)
-            UiActions.SafeRun("导出失败", () => state.ExportOverlayAsync(OverlayFormat.WebmVp9Alpha), state);
+            UiActions.SafeRun(Loc.T("Error.Export"), () => state.ExportOverlayAsync(OverlayFormat.WebmVp9Alpha), state);
     }
 
     private void OnExportOverlay(object? sender, RoutedEventArgs e)
@@ -33,7 +33,7 @@ public partial class PreviewView : UserControl
             _ => OverlayFormat.WebmVp9Alpha
         };
 
-        UiActions.SafeRun("导出失败", () => state.ExportOverlayAsync(format), state);
+        UiActions.SafeRun(Loc.T("Error.Export"), () => state.ExportOverlayAsync(format), state);
     }
 
     private void OnExportSubtitle(object? sender, RoutedEventArgs e)
@@ -41,6 +41,6 @@ public partial class PreviewView : UserControl
         if (State is not { } state || sender is not MenuItem { Tag: string tag })
             return;
 
-        UiActions.SafeRun("导出字幕失败", () => state.ExportSubtitlesAsync(tag), state);
+        UiActions.SafeRun(Loc.T("Error.ExportSubtitles"), () => state.ExportSubtitlesAsync(tag), state);
     }
 }

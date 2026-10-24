@@ -8,11 +8,17 @@
     <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
       <!-- 清晰度档位 + 导出画布尺寸提示 -->
       <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="清晰度" FontSize="11.5" Foreground="#9BA3B4" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource L.Preview.Quality}" FontSize="11.5" Foreground="#9BA3B4" VerticalAlignment="Center" />
         <ComboBox MinWidth="118" FontSize="11.5" VerticalAlignment="Center"
                   ItemsSource="{Binding State.QualityOptions}"
                   SelectedItem="{Binding State.Quality}"
-                  ToolTip.Tip="决定导出画布的像素尺寸" />
+                  ToolTip.Tip="{DynamicResource L.Tip.Quality}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
         <TextBlock Text="{Binding State.ExportLayoutHint}" FontSize="11" Foreground="#7C8494"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
       </StackPanel>
@@ -23,7 +29,8 @@
                      Maximum="1" Width="120" Height="8" />
 
         <SplitButton Click="OnExportDefault" Background="#3D6FD8" Foreground="White" Padding="12,4"
-                     ToolTip.Tip="导出（默认透明视频 WebM）">
+                     AutomationProperties.Name="ExportButton"
+                     ToolTip.Tip="{DynamicResource L.Tip.Export}">
           <Viewbox Width="16" Height="16" VerticalAlignment="Center">
             <!-- 常用「导出/上传」图标：方框 + 向上箭头 -->
             <Path Fill="White"
@@ -31,13 +38,13 @@
           </Viewbox>
           <SplitButton.Flyout>
             <MenuFlyout>
-              <MenuItem Header="透明视频 · WebM (VP9 alpha)" Tag="webm" Click="OnExportOverlay" />
-              <MenuItem Header="透明视频 · MOV (ProRes 4444)" Tag="mov" Click="OnExportOverlay" />
-              <MenuItem Header="视频 · MP4 (H.264，黑底)" Tag="mp4" Click="OnExportOverlay" />
+              <MenuItem Header="{DynamicResource L.Export.TransparentWebm}" Tag="webm" Click="OnExportOverlay" />
+              <MenuItem Header="{DynamicResource L.Export.TransparentMov}" Tag="mov" Click="OnExportOverlay" />
+              <MenuItem Header="{DynamicResource L.Export.Mp4}" Tag="mp4" Click="OnExportOverlay" />
               <Separator />
-              <MenuItem Header="字幕 · SRT" Tag="srt" Click="OnExportSubtitle" />
-              <MenuItem Header="字幕 · ASS（带样式）" Tag="ass" Click="OnExportSubtitle" />
-              <MenuItem Header="字幕 · WebVTT" Tag="vtt" Click="OnExportSubtitle" />
+              <MenuItem Header="{DynamicResource L.Export.Srt}" Tag="srt" Click="OnExportSubtitle" />
+              <MenuItem Header="{DynamicResource L.Export.Ass}" Tag="ass" Click="OnExportSubtitle" />
+              <MenuItem Header="{DynamicResource L.Export.Vtt}" Tag="vtt" Click="OnExportSubtitle" />
             </MenuFlyout>
           </SplitButton.Flyout>
         </SplitButton>
@@ -48,7 +55,7 @@
       <Panel>
         <controls:Checkerboard />
         <Image Source="{Binding State.PreviewImage}" Stretch="Uniform" />
-        <TextBlock Text="识别完成后这里会显示字幕效果" Foreground="#5C6272" FontSize="12"
+        <TextBlock Text="{DynamicResource L.Preview.Empty}" Foreground="#5C6272" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    IsVisible="{Binding !State.HasCues}" />
       </Panel>

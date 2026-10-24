@@ -63,11 +63,14 @@ public static class TempWorkspace
         yield return Path.Combine(Path.GetTempPath(), "subtitle-studio");
     }
 
+    private static bool _cleaned;
+
     private static string? TryPrepare(string dir)
     {
         try
         {
             Directory.CreateDirectory(dir);
+            CleanupStale(dir);
             var probe = Path.Combine(dir, $".probe-{Guid.NewGuid():N}");
             using (var fs = new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1,
                        FileOptions.DeleteOnClose))
@@ -80,6 +83,38 @@ public static class TempWorkspace
         catch
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// 进程被强杀时预览 wav 来不及删（一条音轨能到几百 MB），
+    /// 每次启动顺手清掉一天前的残留；还活着的会话不会碰。
+    /// </summary>
+    private static void CleanupStale(string dir)
+    {
+        if (_cleaned)
+            return;
+
+        _cleaned = true;
+        try
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-1);
+            foreach (var file in Directory.EnumerateFiles(dir))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                        File.Delete(file);
+                }
+                catch
+                {
+                    // 被别的实例占用就留着
+                }
+            }
+        }
+        catch
+        {
+            // 列不出来就算了
         }
     }
 }

@@ -22,13 +22,13 @@ public partial class TimelineView : UserControl
     private void OnOpenClick(object? sender, RoutedEventArgs e)
     {
         if (State is { } state)
-            UiActions.SafeRun("打开文件失败", state.OpenFileAsync, state);
+            UiActions.SafeRun(Loc.T("Error.OpenFile"), state.OpenFileAsync, state);
     }
 
     private void OnRetranscribeClick(object? sender, RoutedEventArgs e)
     {
         if (State is { } state)
-            UiActions.SafeRun("识别失败", state.RunRecognitionAsync, state);
+            UiActions.SafeRun(Loc.T("Error.Recognition"), state.RunRecognitionAsync, state);
     }
 
     private void OnCancelRecognition(object? sender, RoutedEventArgs e) => State?.CancelRecognition();
@@ -36,7 +36,7 @@ public partial class TimelineView : UserControl
     private void OnPlayPause(object? sender, RoutedEventArgs e)
     {
         if (State is { } state)
-            UiActions.SafeRun("播放失败", state.TogglePlayAsync, state);
+            UiActions.SafeRun(Loc.T("Error.Playback"), state.TogglePlayAsync, state);
     }
 
     /// <summary>模型菜单：本地模型 ▸ / 硅基流动 ▸ / 天翼星辰 ▸ / 设置。</summary>
@@ -55,10 +55,58 @@ public partial class TimelineView : UserControl
         flyout.Items.Add(siliconItem);
         flyout.Items.Add(teleItem);
 
+        // 用户在设置里加的 OpenAI 兼容提供商，跟在两个内置云端后面；
+        // 跑过连接测试的带模型二级菜单，没跑过的整项点击即选用
+        foreach (var provider in state.Settings.CustomProviders)
+        {
+            var captured = provider;
+            var active = state.Backend == AsrBackend.Custom && state.Settings.CustomProviderId == provider.Id;
+
+            if (provider.CachedModels.Count == 0)
+            {
+                var item = new MenuItem
+                {
+                    Header = provider.Name,
+                    Icon = active ? Check() : null
+                };
+                item.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.SwitchModel"), async () =>
+                {
+                    if (!await SettingsPrompt.EnsureAsync(this, state, captured))
+                        return;
+                    state.UseCustomProvider(captured);
+                }, state);
+                flyout.Items.Add(item);
+                continue;
+            }
+
+            var parent = new MenuItem
+            {
+                Header = provider.Name,
+                Icon = active ? Check() : null
+            };
+            foreach (var modelId in provider.CachedModels)
+            {
+                var capturedModel = modelId;
+                var sub = new MenuItem
+                {
+                    Header = modelId,
+                    Icon = active && string.Equals(provider.Model, modelId, StringComparison.Ordinal) ? Check() : null
+                };
+                sub.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.SwitchModel"), async () =>
+                {
+                    if (!await SettingsPrompt.EnsureAsync(this, state, captured))
+                        return;
+                    state.UseCustomProviderModel(captured, capturedModel);
+                }, state);
+                parent.Items.Add(sub);
+            }
+            flyout.Items.Add(parent);
+        }
+
         flyout.Items.Add(new Separator());
 
         var settings = new MenuItem { Header = Loc.T("Menu.Settings") };
-        settings.Click += (_, _) => UiActions.SafeRun("打开设置失败", async () =>
+        settings.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.OpenSettings"), async () =>
         {
             await OpenSettingsAsync(state);
         }, state);
@@ -85,7 +133,7 @@ public partial class TimelineView : UserControl
         {
             var item = new MenuItem
             {
-                Header = $"{model.Display}（{model.SizeLabel}）",
+                Header = Loc.T("Menu.LocalModelItem", model.Display, model.SizeLabel),
                 Icon = state.SelectedModel?.FullPath == model.FullPath && state.Backend == AsrBackend.Local
                     ? Check()
                     : null
@@ -124,7 +172,7 @@ public partial class TimelineView : UserControl
                         : null
                 };
                 var captured = model;
-                item.Click += (_, _) => UiActions.SafeRun("切换模型失败", async () =>
+                item.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.SwitchModel"), async () =>
                 {
                     if (!await SettingsPrompt.EnsureAsync(this, state, AsrBackend.SiliconFlow))
                         return;
@@ -136,7 +184,7 @@ public partial class TimelineView : UserControl
 
         silicon.Items.Add(new Separator());
         var refresh = new MenuItem { Header = Loc.T("Menu.RefreshModels") };
-        refresh.Click += (_, _) => UiActions.SafeRun("获取模型列表失败", async () =>
+        refresh.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.RefreshModels"), async () =>
         {
             if (!await SettingsPrompt.EnsureAsync(this, state, AsrBackend.SiliconFlow))
                 return;
@@ -157,7 +205,7 @@ public partial class TimelineView : UserControl
             Header = AppState.TeleAiEntry,
             Icon = state.Backend == AsrBackend.TeleAi ? Check() : null
         };
-        teleItem.Click += (_, _) => UiActions.SafeRun("切换模型失败", async () =>
+        teleItem.Click += (_, _) => UiActions.SafeRun(Loc.T("Error.SwitchModel"), async () =>
         {
             if (!await SettingsPrompt.EnsureAsync(this, state, AsrBackend.TeleAi))
                 return;
@@ -176,7 +224,11 @@ public partial class TimelineView : UserControl
         if (owner is null)
             return;
 
-        var window = new SettingsWindow(state.Settings) { Saved = state.ApplySettings };
+        var window = new SettingsWindow(state.Settings)
+        {
+            Saved = state.ApplySettings,
+            CloudModelsFetched = state.OnCloudModelsFetched
+        };
         await window.ShowDialog(owner);
     }
     private void OnZoomIn(object? sender, RoutedEventArgs e)

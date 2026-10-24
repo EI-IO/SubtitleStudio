@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
         x:Class="SubtitleStudio.App.Views.MainWindow"
-        Title="Subtitle Studio — 音轨提取 · 语音识别 · 字幕生成"
+        Title="{DynamicResource L.App.Title}"
         Width="1380" Height="800"
         MinWidth="960" MinHeight="640"
         WindowStartupLocation="CenterScreen"
@@ -11,23 +11,36 @@
 
   <DockPanel>
 
-    <!-- 底部状态条：文件名 / 当前任务或错误 / 进度 / 识别模型 -->
+    <!-- 底部状态条：文件名 / 重置布局 / 语言 / 错误 / 进度 / 识别模型 -->
     <Border DockPanel.Dock="Bottom" Background="#1C1C21" Padding="12,4" BorderBrush="#2A2A31" BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-        <TextBlock Text="{Binding Media.DisplayName, FallbackValue=未加载文件}" Foreground="#7F8798"
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
+        <TextBlock Text="{Binding MediaTitle}" Foreground="#7F8798"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" />
 
-        <Panel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
-          <TextBlock Text="{Binding BusyText}" Foreground="#C7D0E0"
-                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                     IsVisible="{Binding !HasError}" />
+        <!-- 面板被拖乱了一键还原默认四区，紧挨文件名放在左侧 -->
+        <Button Grid.Column="1" Content="{DynamicResource L.Button.ResetLayout}" FontSize="11" Padding="8,1" Margin="14,0,0,0"
+                VerticalAlignment="Center" Click="OnResetLayoutClick"
+                ToolTip.Tip="{DynamicResource L.Tip.ResetLayout}" />
+        <ComboBox Grid.Column="2" x:Name="LanguageBox" FontSize="11" Padding="7,1" Height="22"
+                  MinWidth="96" Margin="8,0,12,0" VerticalAlignment="Center"
+                  AutomationProperties.Name="LanguageBox"
+                  SelectionChanged="OnLanguageChanged"
+                  ToolTip.Tip="{DynamicResource L.Language.Tooltip}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <Panel Grid.Column="3" Margin="0,0,12,0" VerticalAlignment="Center">
           <Border Background="#3A1B1B" BorderBrush="#6B2B2B" BorderThickness="1" CornerRadius="3"
                   Padding="7,1" HorizontalAlignment="Left" Cursor="Hand"
                   IsVisible="{Binding HasError}" PointerPressed="OnErrorClick">
             <ToolTip.Tip>
               <StackPanel Spacing="4" MaxWidth="560">
                 <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" FontSize="11.5" />
-                <TextBlock Text="点击复制完整错误" FontSize="10.5" Foreground="#8A8A93" />
+                <TextBlock Text="{DynamicResource L.Tip.CopyError}" FontSize="10.5" Foreground="#8A8A93" />
               </StackPanel>
             </ToolTip.Tip>
             <StackPanel Orientation="Horizontal" Spacing="5">
@@ -38,13 +51,13 @@
           </Border>
         </Panel>
 
-        <ProgressBar Grid.Column="2" IsVisible="{Binding IsBusy}" Value="{Binding Progress}" Maximum="1"
+        <ProgressBar Grid.Column="4" IsVisible="{Binding IsBusy}" Value="{Binding Progress}" Maximum="1"
                      Width="170" Height="6" Margin="0,0,12,0" VerticalAlignment="Center" />
-        <Button Grid.Column="3" Content="以管理员重启" FontSize="11" Padding="8,1" Margin="0,0,12,0"
+        <Button Grid.Column="5" Content="{DynamicResource L.Button.Elevate}" FontSize="11" Padding="8,1" Margin="0,0,12,0"
                 VerticalAlignment="Center" Click="OnElevateClick"
                 IsVisible="{Binding ErrorIsPermission}"
-                ToolTip.Tip="当文件写入被权限/受控文件夹拦住时，用管理员身份重新打开本程序" />
-        <TextBlock Grid.Column="4" Text="{Binding AudioInfo}" Foreground="#6F7686" VerticalAlignment="Center" />
+                ToolTip.Tip="{DynamicResource L.Tip.Elevate}" />
+        <TextBlock Grid.Column="6" Text="{Binding AudioInfo}" Foreground="#6F7686" VerticalAlignment="Center" />
       </Grid>
     </Border>
 

@@ -1,4 +1,4 @@
-# 打包成可直接双击运行的目录：dist\SubtitleStudio\
+﻿# 打包成可直接双击运行的目录：dist\SubtitleStudio\
 #   full（默认）：自包含，目标机不需要装 .NET
 #   -Mode slim：框架依赖，需要目标机装 .NET 10 Desktop Runtime，体积小 80MB 左右
 #   加 -Zip 额外压一个 zip；加 -NoModel 不打包模型（首次运行在「设置 → 本地模型」里下载）
@@ -53,6 +53,24 @@ $app = Join-Path $root 'src\SubtitleStudio.App\SubtitleStudio.App.csproj'
 $cli = Join-Path $root 'src\SubtitleStudio.Cli\SubtitleStudio.Cli.csproj'
 $dist = Join-Path $root ('dist\SubtitleStudio' + $(if ($Mode -eq 'slim') { '-slim' } else { '' }))
 
+# Compress-Archive 在 Windows PowerShell 5.1 下会写成反斜杠条目名，
+# Linux/macOS 解压会得到带 \ 的文件名；这里统一手写正斜杠。
+function New-Zip([string]$sourceDir, [string]$zipPath) {
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+    $base = (Resolve-Path $sourceDir).Path.TrimEnd('\')
+    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Get-ChildItem -LiteralPath $base -Recurse -File -Force | ForEach-Object {
+            $rel = $_.FullName.Substring($base.Length + 1).Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+    } finally {
+        $zip.Dispose()
+    }
+}
+
 if (Test-Path $dist) {
     Remove-Item -Recurse -Force $dist
 }
@@ -88,7 +106,15 @@ if (-not $NoModel -and (Test-Path $modelsSrc)) {
         ForEach-Object { Copy-Item $_.FullName $modelsDst -Force }
 }
 
-Copy-Item (Join-Path $root 'README.md') $dist -Force
+# README 只随源码包分发，运行包与安装程序不带
+
+# 运行期产生的用户数据不能跟着发布：安全软件拦用户目录时程序会退到这里存设置
+$runtimeConfig = Join-Path $dist 'config'
+if (Test-Path $runtimeConfig) {
+    Write-Host "清理发布目录里的用户配置：$runtimeConfig"
+    Remove-Item $runtimeConfig -Recurse -Force
+}
+Get-ChildItem $dist -File -Filter '*.log' -ErrorAction SilentlyContinue | Remove-Item -Force
 
 # 只留 Windows 原生库：NuGet 包里带了 linux/macos/wasm 各平台产物，删掉能省 100MB 左右
 $runtimes = Join-Path $dist 'runtimes'
@@ -98,8 +124,13 @@ if (Test-Path $runtimes) {
         ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
 }
 
-# 调试期才用得上的东西，发布版删掉
-foreach ($junk in @('createdump.exe', 'Microsoft.DiaSymReader.Native.amd64.dll', '*.pdb', '*.lib', '*.exp')) {
+# 调试期才用得上的东西，发布版删掉；
+# 另外 win-x64 用不到其他平台的 Avalonia 后端（Linux/macOS）和设计器远程协议。
+# Avalonia.Metal.dll 必须保留：Avalonia.Skia.dll 在 Windows 上也引用它，
+# 删了窗口只剩标题栏、客户区不再重绘，看起来像“窗口变透明”。
+foreach ($junk in @('createdump.exe', 'Microsoft.DiaSymReader.Native.amd64.dll', '*.pdb', '*.lib', '*.exp',
+                    'Avalonia.X11.dll', 'Avalonia.FreeDesktop.dll', 'Avalonia.Native.dll',
+                    'Avalonia.DesignerSupport.dll', 'Avalonia.Remote.Protocol.dll', 'ggml-metal.metal')) {
     Get-ChildItem $dist -Recurse -File -Filter $junk -ErrorAction SilentlyContinue |
         ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 }
@@ -109,9 +140,8 @@ Write-Host ("`nOK -> {0}  ({1:0.0} MB, {2} 个文件)" -f $dist, ($size / 1MB), 
 
 if ($Zip) {
     $zipPath = Join-Path $root ("dist\SubtitleStudio-{0}.zip" -f $Mode)
-    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     Write-Host "压缩中 ..."
-    Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $zipPath -CompressionLevel Optimal
+    New-Zip $dist $zipPath
     Write-Host ("ZIP -> {0}  ({1:0.0} MB)" -f $zipPath, ((Get-Item $zipPath).Length / 1MB))
 }
 

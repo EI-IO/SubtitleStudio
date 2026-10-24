@@ -1,3 +1,4 @@
+using SubtitleStudio.App.Services;
 using SubtitleStudio.Core.Media;
 using SubtitleStudio.Core.Models;
 
@@ -6,7 +7,7 @@ namespace SubtitleStudio.App.ViewModels;
 /// <summary>打开文件、建立音轨列表、后台生成波形。</summary>
 public sealed partial class AppState
 {
-    /// <summary>打开文件对话框 → 加载 → 自动识别。</summary>
+    /// <summary>打开文件对话框 → 加载（识别由用户点「开始识别」启动）。</summary>
     public async Task OpenFileAsync()
     {
         var path = PickMediaFile is null ? null : await PickMediaFile();
@@ -22,7 +23,7 @@ public sealed partial class AppState
         try
         {
             IsBusy = true;
-            BusyText = "读取媒体信息…";
+            BusyText = Loc.T("Busy.ReadingMedia");
             Progress = 0;
             ClearError();
 
@@ -37,32 +38,39 @@ public sealed partial class AppState
 
             if (!info.HasAudio)
             {
-                Status = "这个文件没有音轨，无法识别";
+                Status = Loc.T("Status.NoAudio");
                 return;
             }
 
             BuildTracks(info);
             SelectedTrack = Tracks[0];
-            Status = $"{info.Describe()} · {Tracks.Count} 条音轨";
+            // 新文件不自动识别：由用户点「开始识别」来启动（只跑勾选的音轨）
+            HasRecognized = false;
+            Status = Loc.T("Status.MediaLoaded", DescribeMedia(info), Tracks.Count);
 
-            // 波形是后台任务，不挡住识别
+            // 波形是后台任务，不挡住界面
             IsBusy = false;
             BusyText = string.Empty;
             foreach (var track in Tracks)
                 _ = LoadWaveformAsync(path, track, info.DurationSeconds);
-
-            await RunRecognitionAsync();
         }
         catch (Exception ex)
         {
-            Status = "打不开：" + ex.Message;
-            ReportError("打不开：" + ex.Message);
+            Status = Loc.T("Status.OpenFailed", ex.Message);
+            ReportError(Loc.T("Status.OpenFailed", ex.Message));
         }
         finally
         {
             IsBusy = false;
             BusyText = string.Empty;
         }
+    }
+
+    /// <summary>「文件名 · 分辨率/纯音频 · 时长」；Core 里的是中文，这里按当前语言拼。</summary>
+    private static string DescribeMedia(MediaInfo info)
+    {
+        var size = info.HasVideo ? $"{info.Width}x{info.Height}" : Loc.T("Media.PureAudio");
+        return Loc.T("Media.Summary", info.DisplayName, size, info.DurationSeconds);
     }
 
     private void ResetTracks()

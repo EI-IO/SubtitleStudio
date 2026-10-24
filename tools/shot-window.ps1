@@ -1,8 +1,9 @@
-# 按窗口截图（类似录屏软件的「窗口捕获」）：找进程主窗口 → 取真实可见矩形 → 抓屏。
+﻿# 按窗口截图（类似录屏软件的「窗口捕获」）：找进程主窗口 → 取真实可见矩形 → 抓屏。
 # 用法: .\shot-window.ps1 -Out ..\gui.png [-ProcessName SubtitleStudio] [-Delay 0]
 param(
     [string]$Out = 'shot.png',
     [string]$ProcessName = 'SubtitleStudio',
+    [int]$Id = 0,          # 指定 PID，避免旧实例抢先被截到
     [int]$Delay = 0
 )
 
@@ -31,9 +32,13 @@ public static class W32Shot {
 
 [void][W32Shot]::SetProcessDPIAware()
 
-$proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-if (-not $proc) { throw "找不到进程 $ProcessName 的主窗口" }
+$proc = if ($Id -gt 0) {
+    Get-Process -Id $Id -ErrorAction SilentlyContinue
+} else {
+    Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+}
+if (-not $proc -or $proc.MainWindowHandle -eq 0) { throw "找不到进程 $ProcessName 的主窗口" }
 
 $hwnd = $proc.MainWindowHandle
 
@@ -43,11 +48,14 @@ if ($Delay -gt 0) { Start-Sleep -Milliseconds $Delay }
 [void][W32Shot]::BringWindowToTop($hwnd)
 
 # 前台窗口锁：先挂到当前前台线程上，再抢前台
+# 注意：无人值守/锁屏时 GetForegroundWindow 可能返回 0，必须跳过附着
 $fg = [W32Shot]::GetForegroundWindow()
-$null = 0
 $fgPid = 0
-$fgThread = [W32Shot]::GetWindowThreadProcessId($fg, [ref]$fgPid)
+$fgThread = 0
 $curThread = [W32Shot]::GetCurrentThreadId()
+if ($fg -ne [IntPtr]::Zero) {
+    $fgThread = [W32Shot]::GetWindowThreadProcessId($fg, [ref]$fgPid)
+}
 if ($fgThread -ne 0 -and $fgThread -ne $curThread) { [void][W32Shot]::AttachThreadInput($curThread, $fgThread, $true) }
 [void][W32Shot]::SetForegroundWindow($hwnd)
 if ($fgThread -ne 0 -and $fgThread -ne $curThread) { [void][W32Shot]::AttachThreadInput($curThread, $fgThread, $false) }
@@ -81,7 +89,9 @@ if ($isForeground) {
 }
 
 $g.Dispose()
-$full = [System.IO.Path]::GetFullPath($Out, (Get-Location).Path)
+# PowerShell 5.1（.NET Framework）没有 GetFullPath(path, basePath) 重载
+$full = if ([System.IO.Path]::IsPathRooted($Out)) { $Out } else { Join-Path (Get-Location).Path $Out }
+$full = [System.IO.Path]::GetFullPath($full)
 $bmp.Save($full, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 

@@ -22,28 +22,32 @@ public sealed partial class AppState
             return;
 
         _stopRequested = true;
-        BusyText = "正在停止…";
-        Status = "正在停止…";
+        BusyText = Loc.T("Status.Stopping");
+        Status = Loc.T("Status.Stopping");
         _recognitionCts?.Cancel();
     }
 
-    /// <summary>逐条音轨识别，每条音轨各自得到一组字幕。</summary>
+    /// <summary>逐条识别勾选的音轨（没勾选的跳过，原有字幕保留），每条音轨各自得到一组字幕。</summary>
     public async Task RunRecognitionAsync()
     {
         if (Media is null || IsBusy)
             return;
 
-        var tracks = Tracks.ToList();
+        // 只跑勾选的音轨：多轨素材里经常有背景音乐轨，识别它们纯属浪费时间
+        var tracks = Tracks.Where(t => t.ExportEnabled).ToList();
         if (tracks.Count == 0)
+        {
+            Status = Loc.T("Status.RecognitionNoTracks");
             return;
+        }
 
         var isLocal = Backend == AsrBackend.Local;
         var modelPath = isLocal ? LocalModelPath() : null;
 
         if (isLocal && modelPath is null)
         {
-            Status = "没有找到模型：把 ggml-*.bin 放进 models 文件夹";
-            AudioInfo = "本地 · 缺少模型";
+            Status = Loc.T("Status.NoModel");
+            AudioInfo = Loc.T("AudioInfo.LocalMissing");
             return;
         }
 
@@ -57,7 +61,7 @@ public sealed partial class AppState
             }
             else
             {
-                Status = Settings.MissingHint(Backend) + "，点标题栏的「设置」填一下";
+                Status = Loc.T("Status.NeedCredential", MissingHintText(Backend));
                 return;
             }
         }
@@ -72,7 +76,7 @@ public sealed partial class AppState
             var token = _recognitionCts.Token;
 
             AudioInfo = isLocal
-                ? "本地 Whisper · " + ModelCatalog.DisplayName(modelPath!)
+                ? Loc.T("AudioInfo.LocalWhisper", ModelCatalog.DisplayName(modelPath!))
                 : ModelLabel;
 
             for (var i = 0; i < tracks.Count; i++)
@@ -86,23 +90,27 @@ public sealed partial class AppState
             if (_stopRequested)
             {
                 Progress = 0;
-                Status = "识别已停止（已完成的音轨保留）";
+                Status = Loc.T("Status.RecognitionStopped");
+                // 中途停下不算「识别过」：按钮回到「开始识别」，下次从勾选的轨重新跑
+                HasRecognized = false;
                 Summarize(tracks, quiet: true);
                 return;
             }
 
             Progress = 1;
+            HasRecognized = true;
             Summarize(tracks);
         }
         catch (OperationCanceledException)
         {
-            Status = "识别已停止（已完成的音轨保留）";
+            Status = Loc.T("Status.RecognitionStopped");
+            HasRecognized = false;
             Summarize(tracks, quiet: true);
         }
         catch (Exception ex)
         {
-            Status = "识别失败：" + ex.Message;
-            ReportError("识别失败：" + TlsDiagnostics.Describe(ex));
+            Status = Loc.T("Status.RecognitionFailed", ex.Message);
+            ReportError(Loc.T("Status.RecognitionFailed", TlsDiagnostics.Describe(ex)));
         }
         finally
         {
@@ -122,9 +130,9 @@ public sealed partial class AppState
 
         try
         {
-            track.Status = "抽取音轨…";
+            track.Status = Loc.T("Track.Extracting");
             track.Progress = 0;
-            BusyText = $"{track.Info.Number}：抽取音轨…";
+            BusyText = Loc.T("Busy.ExtractingTrack", track.LabelShort);
 
             var extractProgress = new Progress<double>(p =>
             {
@@ -134,21 +142,21 @@ public sealed partial class AppState
 
             await AudioExtractor.ExtractWavAsync(
                 media.Path, temp, media.DurationSeconds, extractProgress,
-                cancellationToken: token, audioStreamIndex: track.Info.Index);
+                cancellationToken: token, audioStreamIndex: track.Info.Index,
+                denoise: Settings.Denoise);
 
             token.ThrowIfCancellationRequested();
 
-            track.Status = "识别中…";
-            BusyText = isLocal
-                ? $"{track.Info.Number}：识别中（{Path.GetFileName(modelPath!)}）…"
-                : $"{track.Info.Number}：识别中（{ModelLabel}）…";
+            track.Status = Loc.T("Track.Recognizing");
+            BusyText = Loc.T("Busy.RecognizingWith", track.LabelShort,
+                isLocal ? Path.GetFileName(modelPath!) : ModelLabel);
 
             var asrProgress = new Progress<AsrProgress>(p =>
             {
                 track.Progress = 0.25 + p.Fraction * 0.75;
                 Progress = baseProgress + (0.25 + p.Fraction * 0.75) * slice;
                 if (!string.IsNullOrEmpty(p.Message))
-                    BusyText = $"{track.Info.Number}：{p.Message}";
+                    BusyText = $"{track.LabelShort}: {p.Message}";
             });
 
             // 本地识别在 CLI 子进程里跑，取消令牌能直接杀掉进程（真停止）；
@@ -163,15 +171,15 @@ public sealed partial class AppState
             track.Language = result.Language;
             var dropped = result.Segments.Count - cleaned.Count;
             track.Status = cues.Count == 0
-                ? "没有识别到语音"
+                ? Loc.T("Track.None")
                 : dropped > 0
-                    ? $"完成 · {cues.Count} 条 · {result.Language}（过滤 {dropped} 段幻觉）"
-                    : $"完成 · {cues.Count} 条 · {result.Language}";
+                    ? Loc.T("Track.DoneFiltered", cues.Count, result.Language, dropped)
+                    : Loc.T("Track.Done", cues.Count, result.Language);
             track.Progress = 1;
         }
         catch (OperationCanceledException)
         {
-            track.Status = "已停止";
+            track.Status = Loc.T("Track.Stopped");
             track.Progress = 0;
             throw;
         }
@@ -180,13 +188,13 @@ public sealed partial class AppState
             // 取消时原生库收尾可能抛别的异常，不算失败
             if (token.IsCancellationRequested)
             {
-                track.Status = "已停止";
+                track.Status = Loc.T("Track.Stopped");
                 track.Progress = 0;
                 throw new OperationCanceledException(token);
             }
 
-            track.Status = "失败：" + ex.Message;
-            ReportError($"{track.Info.Number}：{TlsDiagnostics.Describe(ex)}");
+            track.Status = Loc.T("Track.Failed", ex.Message);
+            ReportError($"{track.LabelShort}: {TlsDiagnostics.Describe(ex)}");
         }
         finally
         {
@@ -211,10 +219,23 @@ public sealed partial class AppState
         if (Backend == AsrBackend.SiliconFlow)
         {
             using var remote = new RemoteAsrProvider(
-                "硅基流动",
+                Loc.T("Menu.SiliconFlow"),
                 Settings.SiliconFlowBaseUrl,
                 Settings.SiliconFlowModel,
                 Settings.SiliconFlowApiKey);
+            return await remote.TranscribeAsync(wavPath, new AsrOptions(), progress, token);
+        }
+
+        if (Backend == AsrBackend.Custom)
+        {
+            // 自定义提供商走的也是 OpenAI 兼容的 /audio/transcriptions，与硅基流动同一条通路
+            var provider = Settings.ActiveCustomProvider()
+                ?? throw new InvalidOperationException(Loc.T("Label.CustomProviderMissing"));
+            using var remote = new RemoteAsrProvider(
+                provider.Name,
+                provider.BaseUrl,
+                provider.Model,
+                provider.ApiKey);
             return await remote.TranscribeAsync(wavPath, new AsrOptions(), progress, token);
         }
 
@@ -238,10 +259,10 @@ public sealed partial class AppState
         if (quiet)
             return;
 
-        Status = $"{first.Info.Number} · {first.Cues.Count} 条字幕 · 语言 {first.Language ?? "?"}";
+        Status = Loc.T("Status.TrackSummary", first.LabelShort, first.Cues.Count, first.Language ?? "?");
 
         if (tracks.Count > 1)
-            Status += $"（共 {ok}/{tracks.Count} 条音轨、{totalCues} 条字幕）";
+            Status = Loc.T("Status.TrackSummaryMulti", Status, ok, tracks.Count, totalCues);
     }
 
     /// <summary>把断句结果填进指定音轨，并接上编辑回调。</summary>
@@ -284,9 +305,9 @@ public sealed partial class AppState
 
         SelectedTrack.Cues.Clear();
         SelectedCue = null;
-        SelectedTrack.Status = "已清空";
+        SelectedTrack.Status = Loc.T("Track.Cleared");
         NotifyCuesChanged();
-        Status = $"{SelectedTrack.Info.Number} · 已清空字幕";
+        Status = Loc.T("Status.Cleared", SelectedTrack.LabelShort);
         SchedulePreview();
     }
 

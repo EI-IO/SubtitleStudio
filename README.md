@@ -1,330 +1,408 @@
 # SubtitleStudio
 
-从视频里抽音轨 → 语音识别 → 生成可编辑字幕 → 渲染成透明叠加视频或字幕文件。
-.NET 10 + Avalonia 桌面端 + ffmpeg + whisper.cpp（Whisper.net）。
+English | [简体中文](README.zh-CN.md)
 
-## 界面
+Extract audio tracks from video → speech recognition → editable subtitles → render alpha-channel overlay videos or subtitle files.
+Built with .NET 10 + Avalonia desktop + ffmpeg + whisper.cpp (Whisper.net).
 
-![界面截图](docs/screenshot.png)
+> Developed by DeepSeek and Kimi K3.
 
-Dock 式四区布局，面板可拖动：
+## Download
+
+The Releases page provides three packages:
+
+| Package | Purpose |
+|---|---|
+| `SubtitleStudio-Setup-x.y.z.exe` | Installer: bundles ffmpeg and the tiny model. Installs per-user by default (no UAC prompt). |
+| `SubtitleStudio-full.zip` | Portable full build: unzip and run `SubtitleStudio.exe`. No .NET installation required. |
+| `SubtitleStudio-slim.zip` | Slim build: requires the .NET 10 Desktop Runtime, about 75 MB smaller than the full build. |
+
+The installer creates a Start menu shortcut (desktop icon optional) and can be removed from Settings → Apps.
+User settings and imported fonts live in `%LOCALAPPDATA%\SubtitleStudio` and are kept after uninstalling.
+The installer is not code-signed, so SmartScreen may warn on first run — click “More info → Run anyway”.
+
+## Interface
+
+![Screenshot](docs/screenshot.png)
+
+Dock-style four-pane layout: drag pane titles to rearrange or dock them like VSCode, drag splitters to resize, and the layout is remembered.
+The “Reset layout” button in the bottom bar restores the default arrangement in one click (panes have no close button, so a scattered layout can always be recovered):
 
 ```
 ┌───────────────┬──────────────────────────────────────┐
-│ 字幕列表       │ 时间轴：每条音轨一行                    │
-│ （改错字）     │   波形 + 紧贴其下的字幕条               │
-│               │   点哪条音轨就切到哪条                  │
+│ Subtitle list │ Timeline: one row per audio track     │
+│ (fix typos)   │   waveform + subtitle bars below      │
+│               │   click a row to switch to that track │
 ├───────────────┴──────────────────────────────────────┤
-│ 样式条：字体 / 字号 / 字色 / 描边 / 底部边距            │
+│ Style bar: font / size / color / outline / bottom gap │
 ├──────────────────────────────────────────────────────┤
-│ 预览（棋盘格 = 透明背景）+ 导出下拉                     │
+│ Preview (checkerboard = transparent) + export menu    │
 └──────────────────────────────────────────────────────┘
 ```
 
-## 目录
+## Layout
 
 ```
 SubtitleStudio/
-├─ build.ps1                 # 离线还原 + 编译
-├─ publish.ps1               # Release 自包含打包到 dist/
-├─ run.ps1                   # 编译并启动
-├─ Directory.Build.props     # 编译目标、可空性、输出整洁度的统一配置（在 src/ 下）
-├─ NuGet.config              # 只指向本地离线包目录
-├─ models/                   # 放 ggml-*.bin（见 models/README.md）
-├─ tools/ffmpeg/bin/         # 放 ffmpeg.exe / ffprobe.exe
+├─ build.ps1                 # offline restore + build
+├─ publish.ps1               # Release publish (self-contained) into dist/
+├─ run.ps1                   # build and launch
+├─ Directory.Build.props     # shared target framework, nullable, clean output settings (under src/)
+├─ NuGet.config              # nuget.org by default; scripts switch to .tools\nuget-local when present
+├─ models/                   # put ggml-*.bin here
+├─ tools/ffmpeg/bin/         # put ffmpeg.exe / ffprobe.exe here
 └─ src/
-   ├─ SubtitleStudio.Core/   # 无 UI 依赖：媒体、ASR、断句、字幕写出、透明视频渲染
-   ├─ SubtitleStudio.Cli/    # 命令行：SubtitleStudio.Cli.exe（AssemblyName 与项目同名）
-   └─ SubtitleStudio.App/    # Avalonia 桌面应用
+   ├─ SubtitleStudio.Core/   # UI-free: media, ASR, segmentation, subtitle output, alpha video rendering
+   ├─ SubtitleStudio.Cli/    # command line: SubtitleStudio.Cli.exe (AssemblyName matches the project)
+   └─ SubtitleStudio.App/    # Avalonia desktop app
 ```
 
-### 分层约定
+### Layering conventions
 
-* `Core` 不认识 Avalonia，也不做任何 UI 线程调度；目录按 `Models / Media / Asr / Subtitles / Export` 切分，每个文件只负责一件事。
-* `App` 的 `AppState` 是一个 `partial class`，按关注点拆成 5 个文件：
-  `AppState.cs`（状态与派生属性）、`AppState.Media.cs`（加载、波形、选轨）、
-  `AppState.Recognition.cs`（抽音轨 + ASR + 断句）、`AppState.Preview.cs`（预览渲染、时间轴交互）、
-  `AppState.Export.cs`（透明视频 / 字幕导出）。
-* `Controls/TimelineControl` 同样是 `partial`：`TimelineControl.cs`（属性与外观常量）、
-  `.Render.cs`（刻度 / 波形 / 字幕块 / 播放头绘制）、`.Input.cs`（缩放、平移、拖动、拉伸）。
-* `Panels.cs` 只放四个 Dock 面板的壳（`SubtitleList/Timeline/Preview`），样式编辑单独在 `StyleViewModel.cs`。
-* 每个 `View` 的对话框与窗口事件放在 `.Dialogs.cs` / `DockChrome.cs` 这类附属文件里，不再往一个文件里堆。
+* `Core` has no knowledge of Avalonia and never dispatches to a UI thread. Folders are split into `Models / Media / Asr / Subtitles / Export`, and each file does one job.
+* The App's `AppState` is a `partial class` split by concern across five files:
+  `AppState.cs` (state and derived properties), `AppState.Media.cs` (loading, waveform, track selection),
+  `AppState.Recognition.cs` (audio extraction + ASR + segmentation), `AppState.Preview.cs` (preview rendering, timeline interaction),
+  `AppState.Export.cs` (alpha video / subtitle export). Playback lives in `AppState.Playback.cs`.
+* `Controls/TimelineControl` is also `partial`: `TimelineControl.cs` (properties and appearance constants),
+  `.Render.cs` (ticks / waveform / subtitle blocks / playhead), `.Input.cs` (zoom, pan, drag, resize).
+* `Panels.cs` only contains the shells of the four Dock panes (`SubtitleList/Timeline/Preview`); style editing lives in `StyleViewModel.cs`.
+* Dialog and window events for each `View` live in companion files such as `.Dialogs.cs` / `DockChrome.cs` instead of piling into one file.
 
-### Core 里几个关键点
+### Core highlights
 
-* `Media/AudioExtractor` —— `-map 0:<流索引> -vn -ac 1 -ar 16000 -c:a pcm_s16le`，ASR 统一 16k 单声道；失败时只回传 stderr 最后几行。
-* `Media/TempWorkspace` —— 抽出来的 wav 写在素材同级的 `.subtitle-studio-tmp`，写不进去再退到程序目录 / `%LOCALAPPDATA%` / `%TEMP%`。
-* `Media/WaveformBuilder` —— 把音频解成 8k s16le 走 stdout，边读边算每秒 min/max，用于时间轴波形。
-* `Asr/WhisperLocalProvider` —— Whisper.net 流式回调，边识别边出段。
-* `Subtitles/CueSegmenter` —— 按「句末标点 → 逗号类 → 硬切」三级断句，限制 18 字/行、0.9–6 秒。
-* `Export/SubtitleLayerRenderer` —— SkiaSharp 画文字，把预乘 alpha 反转成直通 alpha（否则 ffmpeg 出来边缘发黑）。
-* `Export/OverlayVideoExporter` —— 每帧 BGRA 裸数据喂给 ffmpeg 的 `rawvideo`，输出带 alpha 的视频。
+* `Media/FfmpegTools` — one place to start and wait for ffmpeg/ffprobe; cancellation always kills the process before cleanup, so no orphan children.
+* `Media/AudioExtractor` — `-map 0:<stream index> -vn -ac 1 -ar 16000 -c:a pcm_s16le`, so ASR always receives 16 kHz mono; failures return only the last few stderr lines.
+* `Media/TempWorkspace` — extracted wav files go to `.subtitle-studio-tmp` next to the media; if that is not writable it falls back to the app directory / `%LOCALAPPDATA%` / `%TEMP%`.
+* `Media/WaveformBuilder` — decodes audio to 8k s16le on stdout and computes min/max per second while streaming, for the timeline waveform.
+* `Asr/WhisperLocalProvider` — Whisper.net streaming callbacks, emitting segments as recognition progresses.
+* `Subtitles/CueSegmenter` — three-level splitting (“sentence-ending punctuation → comma-like → hard cut”), limited to 18 characters per line and 0.9–6 seconds.
+* `Export/SubtitleLayerRenderer` — draws text with SkiaSharp and converts premultiplied alpha back to straight alpha (otherwise ffmpeg output has dark fringes); the font cache is capped at 16 entries and evicted as a batch.
+* `Export/OverlayVideoExporter` — feeds raw BGRA frames per frame to ffmpeg's `rawvideo`, producing video with alpha.
 
-## 构建
+## Build
 
-需要 .NET 10 SDK（或 9/8 改 `Directory.Build.props` 里的 `TargetFramework`）。
+Requires the .NET 10 SDK (to use .NET 9/8, change `TargetFramework` in `Directory.Build.props`).
 
 ```powershell
 cd SubtitleStudio
-.\build.ps1      # 还原 + 编译 App 与 Cli
-.\run.ps1        # 编译并启动
-.\run.ps1 D:\videos\demo.mp4   # 带文件启动，自动抽音轨 + 识别
+.\build.ps1      # restore + build App and Cli
+.\run.ps1        # build and launch
+.\run.ps1 D:\videos\demo.mp4   # launch with a file, audio is extracted automatically; recognition starts only after you click Start recognition
 ```
 
-也可以直接用 dotnet：
+You can also use dotnet directly:
 
 ```powershell
 dotnet build src\SubtitleStudio.App\SubtitleStudio.App.csproj
 dotnet run   --project src\SubtitleStudio.App
 ```
 
-> 离线环境：如果仓库上一层放了 `.tools\dotnet`（本地 SDK）和 `.tools\nuget-local`（离线 nupkg），
-> `build.ps1` / `publish.ps1` 会自动改用它们并把临时目录、NuGet 缓存收进 `.tools`；
-> 没有 `.tools` 时脚本走系统 dotnet 和 nuget.org。
+> Offline environments: if the parent of the repository contains `.tools\dotnet` (local SDK) and `.tools\nuget-local` (offline nupkgs),
+> `build.ps1` / `publish.ps1` automatically use them and redirect temp directories and the NuGet cache into `.tools`.
+> Without `.tools`, the scripts use the system dotnet and nuget.org (`NuGet.config` already points at nuget.org; no changes needed).
 
-## 设置
+> The App uses `Services/CliBridge` to invoke the CLI for whisper recognition (killing the process cancels recognition).
+> The CLI is located next to the App output directory under the matching configuration directory, so App and CLI must be built with the same `dotnet build` configuration.
+> If you build only the App and not the Cli, the status bar shows “SubtitleStudio.Cli.exe not found”.
 
-菜单里点「设置」打开独立窗口，配置存在 `%LOCALAPPDATA%\SubtitleStudio\settings.json`（不可写时依次退到「文档\SubtitleStudio」「程序目录\config」「临时目录」；也可用环境变量 `SUBTITLESTUDIO_SETTINGS` 指定）。
+## Settings
 
-- **硅基流动**：地址固定 `https://api.siliconflow.cn/v1`，填 API Key 后点「获取模型列表」，会拉 `/v1/models` 并只保留语音识别相关的模型（`type=audio` 或名字里带 sensevoice / whisper / asr / speech）。
-- **天翼星辰**：走短语音识别 `POST https://api-maas.teleai.com.cn/aipaas/voice/v1/asr/short`，**只要 API Key**（`Authorization: Bearer sk-...`），不需要 AppID / AppKey。请求体是 `{req_id, audio_data(Base64 PCM), sample_rate, enable_punc, enable_itn}`，返回 `result.sentences[]`（`begin_time` / `end_time` 毫秒 + `texts`）。官方限制单次 1 分钟以内，程序会把长音频按 58 秒切片、逐片识别后平移时间轴拼接，所以整段素材也能用。「测试连接」会拿 0.5 秒静音打一次，返回 `code=10000` 就说明 Key 可用。
-- **本地模型**：列出全部可选 whisper 模型（体积 + 一句话说明），点「下载」按镜像顺序拉取，支持断点续传。默认镜像为 HuggingFace → HF 镜像 → ggml-org，可用环境变量 `SUBTITLESTUDIO_MODEL_MIRRORS` 覆盖（分号分隔，`{file}` 会被替换成文件名），例如内网镜像：
+Click “Settings” in the menu to open a separate window. Settings are stored in `%LOCALAPPDATA%\SubtitleStudio\settings.json` (falling back to `Documents\SubtitleStudio`, then `config` next to the app, then the temp directory; the `SUBTITLESTUDIO_SETTINGS` environment variable overrides the path).
+Note that “not writable” is determined by actually writing a probe file: some security software / Controlled Folder Access allows creating a directory but blocks writing a file, and checking only directory existence would incorrectly report writable and settings would never be saved.
+
+The left side of the settings window is a **provider list** (name + status dot: green = fully configured, red = missing something). **The whole row is clickable**; clicking a row switches the right side to that provider's form (there is no separate Edit button).
+The “Add model provider” button at the bottom connects **any OpenAI-compatible recognition API** (`POST {base URL}/audio/transcriptions`): enter a name, base URL (the `/v1` level), API key, and model name.
+“Test connection” does two things at once: verifies the key/URL and fetches `/v1/models`, caching the result and syncing it to the main window's model menu (custom providers are not filtered; everything is returned).
+Custom providers appear in the model menu and can be removed with “Delete” at the end of the row (the three built-in providers cannot be deleted; deletion asks for confirmation).
+
+All changes are **saved automatically when the window closes** (write and forget; there is no Cancel). The main window's position and size are also remembered on close and restored on the next launch —
+if the screen environment changed (unplugged a monitor, changed resolution, DPI change), the size is clamped first and the visible area is checked; if too little of the window would be visible it falls back to a centered default instead of restoring off-screen.
+
+> **Note: API keys are stored in plain text in settings.json.** Anyone or any program on this machine that can read your user directory can obtain the key.
+> Be careful on shared or public computers, and revoke/reissue the key on the provider's platform immediately if it leaks.
+
+- **SiliconFlow**: fixed base URL `https://api.siliconflow.cn/v1`. Enter the API key and click “Test connection”; connectivity and fetched models are reported together. The returned `/v1/models` is filtered to speech-recognition models (`type=audio` or a name containing sensevoice / whisper / asr / speech) and synced to the main window's model menu, so you do not need to pick a model in Settings.
+- **TeleAI**: uses short-speech recognition at `POST https://api-maas.teleai.com.cn/aipaas/voice/v1/asr/short` and **only needs an API key** (`Authorization: Bearer sk-...`); no AppID / AppKey. The request body is `{req_id, audio_data(Base64 PCM), sample_rate, enable_punc, enable_itn}` and the response contains `result.sentences[]` (`begin_time` / `end_time` in milliseconds + `texts`). The official limit is one minute per request, so long audio is split into **58-second windows with a 2-second overlap**, recognized window by window, then stitched with shifted timelines. Sentences in the overlap belong to the window containing the overlap midpoint (first half to the previous window, second half to the next), so nothing is lost or duplicated. “Test connection” sends 0.5 seconds of silence; `code=10000` means the key works.
+- **Local models**: lists all selectable whisper models (size + one-line description). The button has four states: never downloaded = “Download”, partially downloaded = “Continue”, downloading = “Stop”, installed = “Delete”.
+  Before downloading, all mirrors are probed concurrently (a response within 4 seconds counts as reachable); reachable mirrors are tried in latency order and unreachable ones last (a blocked HEAD does not mean GET is blocked), and if all fail each error is reported. HTTP Range resumes are supported;
+  closing the Settings window keeps the download running, and after a restart an unfinished `.part` file resumes automatically. Default mirrors are HuggingFace → HF mirror → ggml-org; the `SUBTITLESTUDIO_MODEL_MIRRORS` environment variable overrides them (semicolon-separated, `{file}` is replaced with the file name), for example an internal mirror:
 
 ```powershell
 $env:SUBTITLESTUDIO_MODEL_MIRRORS = "http://10.0.0.5/models/{file};https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}"
 ```
 
-命令行等价物：
+Download integrity: data is first written to `model-name.part` (with a neighboring `.part.src` recording the source URL; switching mirrors clears stale fragments automatically).
+When finished, the byte count is verified; a mismatch is reported and the old file is not overwritten. An existing complete model is reused and never downloaded again.
+
+The bottom-left of the Settings window also has **“Denoise before recognition”** (on by default): when extracting audio, ffmpeg gets `highpass=f=80,afftdn=nf=-25`,
+which removes rumble below 80 Hz and suppresses background noise. Clean material is unaffected, while noisy material is recognized noticeably better.
+
+Command-line equivalents:
 
 ```powershell
-SubtitleStudio.Cli.exe --download medium        # 按镜像下载模型
-SubtitleStudio.Cli.exe --settings               # 打印当前设置与配置文件路径
+SubtitleStudio.Cli.exe --download medium        # download a model through the mirrors
+SubtitleStudio.Cli.exe --settings               # print current settings and the config file path
 SubtitleStudio.Cli.exe --settings --set-backend siliconflow --set-key sk-xxx
 ```
 
-## 模型菜单
+## Model menu
 
-标题栏的下拉分三段：**本地模型**（二级菜单列出 models/ 里的模型，显示体积）、**硅基流动**、**天翼星辰**，末尾是**设置**。选中云端后端时如果还没填 Key，才弹一次「去设置」提示；填过之后直接切换。
+The title-bar dropdown has several sections: **Local models** (a submenu listing models in `models/` with sizes), **SiliconFlow**, **TeleAI**, **custom providers** (one entry per provider added in Settings), and **Settings** at the end. If a cloud backend is selected before a key is configured, a one-time “Open settings” prompt appears; after that, switching is direct.
 
-## 删除与清空
+## Delete and clear
 
-- 每条音轨右侧 gutter（导出图标下方）的垃圾桶 = **删掉整条音轨**（连同它的字幕与波形），删除前二次确认；删掉的轨道会从时间轴和列表里移除，剩下的自动重排。
-- 字幕列表右上角的「清空」只清当前音轨的字幕，同样二次确认。
+- The trash icon in the right gutter of each track (below the export icon) **deletes the entire audio track** (including its subtitles and waveform), with confirmation. Deleted tracks disappear from the timeline and list, and the remaining tracks are renumbered.
+- “Clear” at the top right of the subtitle list clears only the current track's subtitles, also with confirmation.
 
-## 时间轴行高
+## Timeline row height
 
-轨道行会**撑满面板高度**（每行 30–96 DIP 自适应），窗口拉高时波形和字幕条一起变厚，下方不会留空白；轨数多到装不下时按最小行高排布。
+Track rows **fill the panel height** (each row adapts between 30 and 96 DIP). When the window grows taller, waveforms and subtitle bars grow with it and no empty space is left at the bottom; when there are too many tracks to fit, the minimum row height is used.
 
-## 按钮自测
+## Button self-test
 
-`tools\ui-test.ps1` 用 Windows UI Automation 把界面按钮跑一遍（不依赖窗口位置）：
+`tools\ui-test.ps1` drives the UI buttons with Windows UI Automation (independent of window position):
 
 ```powershell
-pwsh .\tools\ui-test.ps1 -Media test\test.mp4 -Shots .\shots
+powershell -ExecutionPolicy Bypass -File .\tools\ui-test.ps1 -Media test\test.mp4 -Shots .\shots
 ```
 
-覆盖：播放/暂停、缩放、清空（含确认框）、删除音轨（含确认框）、重新识别、打开文件对话框、导出音频、导出下拉六个格式、模型菜单、设置窗口。脚本会打印 `OK/FAIL` 与截图路径。
+It covers: Start recognition (the button becomes “Re-recognize”), play/pause, zoom, clear (including the confirmation dialog), delete track (including confirmation), re-recognize, the Open file dialog, export audio, all six export formats, the model menu, and the Settings window (provider list + add/delete custom providers + auto-save). The script prints `OK/FAIL` and screenshot paths.
 
+## Internationalization (i18n)
 
-- 每条音轨右侧（导出图标下方）有垃圾桶按钮，删除该轨字幕前会二次确认。
-- 字幕列表右上角的「清空」同样二次确认。
+All UI text goes through `Loc.T("key")`; XAML uses `{DynamicResource L.Key}`. Switching languages refreshes the whole UI immediately without a restart.
+To the right of the file name in the bottom bar are “Reset layout” and the language dropdown: Simplified Chinese / English, plus “More languages…”, which reopens the tile-based selection window.
+On first run (no language saved yet and `SUBTITLESTUDIO_LANG` unset) the tile picker appears first; after a choice it no longer interrupts.
 
-## 多语言（i18n）
+Language pack format (`src/SubtitleStudio.App/Assets/lang/*.json`):
 
-界面文案已收口到 `Services/Loc.cs`（`Loc.T("键")`），内置中/英两套；XAML 里可以用 `{loc:T Menu.Settings}`。
-切换语言：设置环境变量 `SUBTITLESTUDIO_LANG=en`（不设或 `system` 则跟随系统）。
-后续加语种只要在 `Loc.Languages` 里加一份字典，或调用 `Loc.Merge("ja", 字典)` 从外部 JSON 合并，不用改界面代码。
+```json
+{
+  "code": "ja",
+  "name": "日本語",
+  "strings": { "App.Title": "…", "Button.OpenFile": "…" }
+}
+```
 
-## 调色板
+To add a language, put such a JSON file in the `lang/` directory next to the app. It is merged at startup and appears in the dropdown and picker (the file name is the language code, but the `code` inside the file wins).
+The `SUBTITLESTUDIO_LANG=ja` environment variable has the highest priority, overrides the saved choice, and skips the first-run picker; regional codes such as `zh-CN` are supported.
+JSON must be UTF-8. A missing key displays the key itself (making omissions easy to spot); only an unknown language code falls back to Chinese.
 
-样式条上的文字颜色 / 描边颜色方块现在是按钮，点开是完整调色板（色相条 + 饱和度/明度面板 + 透明度 + 常用色），选完立刻预览。
-旁边的十六进制输入框仍然可以手输 `#AARRGGBB`。
+## Color palette
 
-## 音轨上的悬浮按钮
+The text color / outline color squares in the style bar are now buttons. Clicking one opens a full palette (hue bar + saturation/value panel + alpha + common colors); the preview updates immediately.
+The adjacent hex input still accepts manual `#AARRGGBB` values.
 
-鼠标移到某条音轨上，右侧才会出现两个按钮：上面「导出该轨音频」，下面红色「删除整条音轨」。
-两个按钮上下铺满该行的波形 + 字幕条，正好吃满这一列的高度，不留空隙。
+## Hover buttons on tracks
 
-## 云端模型
+Hovering a track reveals two 20×20 buttons on the right: the upper one exports that track's audio, the lower red one deletes the whole track.
+The buttons are vertically centered within the track's “waveform + subtitle bar” height, so they do not become thin strips when a row grows taller.
+Deleting first asks for confirmation, then removes the entire audio track and its subtitles.
 
-「硅基流动」「天翼星辰」在模型菜单里都是二级菜单：硅基流动点「刷新模型列表」会调 `/v1/models`
-并只保留语音识别类（`type=audio`，或名字里带 sensevoice/whisper/asr/speech）；天翼星辰用官方算法编码清单。
+## Cloud models
 
-## 云端识别实测
+“SiliconFlow” and “TeleAI” are both submenus in the model menu. “Test connection” in Settings calls `/v1/models`,
+keeps only speech-recognition models (`type=audio`, or a name containing sensevoice/whisper/asr/speech) and syncs them to the menu; TeleAI uses its official model list.
+Both cloud backends share one `HttpClient`, but each request carries its own API key in the `Authorization` header, so keys never cross.
 
-同一段素材（`test/test.mp4` 第 4 轨，10 秒中文）两个云端后端都跑通了：
+## Cloud ASR test results
 
-| 后端 | 结果 | 备注 |
+The same clip (track 4 of `test/test.mp4`, 10 seconds of Chinese) was recognized successfully with both cloud backends:
+
+| Backend | Result | Notes |
 |---|---|---|
-| 硅基流动 `FunAudioLLM/SenseVoiceSmall` | 「噢噢噢。」/「这是一段测试音频，」/「应该可以识别出来这几句话。」 | 接口只回整段文本 + `language`，**没有分句时间戳**，时间轴按字数估算 |
-| 天翼星辰 `asr/short` | 同样三句，时间 `0.20–2.04` / `2.27–4.47` / `4.49–7.63` | 返回 `begin_time`/`end_time`（毫秒），时间是真实的 |
+| SiliconFlow `FunAudioLLM/SenseVoiceSmall` | “噢噢噢。” / “这是一段测试音频，” / “应该可以识别出来这几句话。” | The API returns only the full text + `language`, **without sentence timestamps**; the timeline is estimated from character counts. |
+| TeleAI `asr/short` | The same three sentences at `0.20–2.04` / `2.27–4.47` / `4.49–7.63` | Returns `begin_time`/`end_time` in milliseconds, so the timestamps are real. |
 
-> 天翼星辰短语音限制单次 1 分钟，超长会自动按 58 秒切片拼接。
+> TeleAI short speech is limited to one minute per request: long audio is analyzed with PCM energy first and cut preferably at **silence** (maximum 58-second windows, 2-second overlap).
+> The overlap is assigned per cutting point — cuts fall in silence, so words are not split in half. SiliconFlow audio longer than 10 minutes uses the same cutting strategy.
 
-## 打包
+## Packaging
 
 ```powershell
-.\publish.ps1                  # full：自包含，目标机不用装 .NET（默认）
-.\publish.ps1 -Mode slim       # slim：框架依赖，要求目标机有 .NET 10 Desktop Runtime
-.\publish.ps1 -Zip             # 额外压一个 zip 方便分发
-.\publish.ps1 -NoModel         # 不打包模型（首次运行在设置里下载）
+.\publish.ps1                  # full: self-contained, no .NET needed on the target machine (default)
+.\publish.ps1 -Mode slim       # slim: framework-dependent, requires .NET 10 Desktop Runtime
+.\publish.ps1 -Zip             # also create a zip for distribution
+.\publish.ps1 -NoModel         # do not bundle models (download them in Settings on first run)
+
+.\installer.ps1                # build an installer from dist\SubtitleStudio
 ```
 
-| 产物 | 目录 | 体积 | zip |
-|---|---|---|---|
-| full | `dist\SubtitleStudio` | 363 MB | 188 MB |
-| slim | `dist\SubtitleStudio-slim` | 289 MB | 154 MB |
+| Artifact | Path | Size |
+|---|---|---|
+| full directory | `dist\SubtitleStudio` | 362 MB |
+| full zip | `dist\SubtitleStudio-full.zip` | 184 MB |
+| slim directory | `dist\SubtitleStudio-slim` | 288 MB |
+| slim zip | `dist\SubtitleStudio-slim.zip` | 151 MB |
+| installer | `dist\SubtitleStudio-Setup-1.1.0.exe` | 150 MB |
 
-体积构成（full）：`tools\ffmpeg` 186 MB + `models` 74 MB + .NET 运行时与程序 101 MB。
+### Installer
 
-- **ffmpeg 是最大头**：用的是 shared 版（`ffmpeg.exe` + `avcodec/avformat/avfilter/...` 一组 DLL）。换成只带所需编解码器的自编译版本可以压到 20–30 MB，代价是失去一部分输入格式的解码能力（当前构建几乎什么都能读）。
-- **想再小**：`-Mode slim` 直接省掉 74 MB 的运行时；`-NoModel` 再省 74 MB 的模型。
-- 打包会顺手删掉 `createdump.exe`、`Microsoft.DiaSymReader.Native`、`*.pdb` 等只在调试期有用的文件，以及 `runtimes` 下非 `win-x64` 的平台产物。
-## 使用
+`installer.iss` is compiled with Inno Setup 6.5+. `installer.ps1` reads the version from `src\Directory.Build.props` and locates `ISCC.exe` in common paths (use `-IsccPath` if it cannot find it):
 
-1. 把 ffmpeg 放到 `tools/ffmpeg/bin/`（或加进 PATH）。
-2. 把模型放到 `models/`，例如 `ggml-tiny.bin` / `ggml-medium.bin`。
-3. 打开应用 → 拖入视频 → 自动抽音轨并识别 → 左侧列表改字、时间轴拖块。
-4. 样式条调字体颜色描边，下方预览实时看效果。
-5. 导出：WebM(VP9 alpha) / MOV(ProRes 4444) / MP4(H.264，无透明) / SRT / ASS / VTT。
+* Installs per-user to `%LOCALAPPDATA%\Programs\Subtitle Studio` by default without UAC; the wizard also offers an all-users install.
+* The installer bundles ffmpeg and the tiny model, so it works immediately after installation. A Start menu shortcut is always created; the desktop icon is optional.
+* `AppId` is fixed, so newer installers upgrade in place. Uninstalling does not touch settings or fonts in `%LOCALAPPDATA%\SubtitleStudio`.
+* The Simplified Chinese UI uses `tools\setup\ChineseSimplified.isl` (from the official Inno Setup language files), with English as fallback.
 
-### 字体
+Size breakdown (full): `tools\ffmpeg` 186 MB + `models` 74 MB + .NET runtime and app 101 MB.
 
-字体下拉里除系统字体外，最后一项是「＋ 导入其他字体…」。选中后挑一个 `.ttf/.otf/.ttc`，
-文件会被复制到 `%LOCALAPPDATA%\\SubtitleStudio\\fonts`，重启后还在；渲染（预览与导出）直接按字体文件加载，
-不需要装进系统字体库。
+- **ffmpeg is the biggest part**: this uses the shared build (`ffmpeg.exe` + a set of `avcodec/avformat/avfilter/...` DLLs). A custom build with only the needed codecs could shrink it to 20–30 MB, at the cost of losing support for some input formats (the current build reads almost anything).
+- **To go smaller**: `-Mode slim` saves the 74 MB runtime; `-NoModel` saves another 74 MB of models.
+- Packaging also removes debug-only files such as `createdump.exe`, `Microsoft.DiaSymReader.Native`, and `*.pdb`, non-`win-x64` platform outputs under `runtimes`, and Avalonia backends unused on win-x64 (X11 / FreeDesktop / macOS Native, designer remote protocol). Despite its name, `Avalonia.Metal.dll` must be kept: Skia on Windows also references it; deleting it leaves only the title bar painted and the client area never redraws, which looks like a “transparent window”.
+- The color palette is drawn in-house; the `Avalonia.Controls.ColorPicker` package is not used. Temporary wav files from preview playback can remain if the process is killed; at startup the app removes files older than one day so the install directory does not grow forever.
 
-### 报错
+## Usage
 
-出错时窗口左下角出现一条红色提示，只显示开头几个字，鼠标悬停展开完整信息，点一下复制到剪贴板。
+1. Put ffmpeg in `tools/ffmpeg/bin/` (or add it to PATH).
+2. Put models in `models/`, for example `ggml-tiny.bin` / `ggml-medium.bin`.
+3. Open the app → drop in a video → audio tracks are extracted automatically (recognition does not start automatically) → check the tracks to recognize and click “Start recognition” → edit text in the left list and drag blocks on the timeline.
+4. Use the style bar to adjust font color and outline; the preview below updates live.
+5. Export: WebM (VP9 alpha) / MOV (ProRes 4444) / MP4 (H.264, no transparency) / SRT / ASS / VTT.
 
-### 多音轨
+### Fonts
 
-一个视频有多条音轨时，时间轴上每条音轨占一行（标着「音轨 1 / 2 / 3」，后面跟 codec 与语言），
-每条都会独立抽音轨、独立识别、独立出字幕。点某一行就切到那条：
+Besides system fonts, the font dropdown has “+ Import other font…” as its last item. Pick a `.ttf/.otf/.ttc`;
+the file is copied to `%LOCALAPPDATA%\SubtitleStudio\fonts` and survives restarts. Rendering (preview and export) loads directly from the font file;
+installing it into the system font library is not required.
 
-* 左侧字幕列表换成该轨的字幕，可以直接改字；
-* 下方预览换成该轨的渲染效果；
-* 每行「音轨 N」右边的方框是**导出勾选**：勾上的轨道才导出视频，没勾的跳过；
-* 鼠标悬浮到某一行，该行最右侧贴边的地方才出现一个小 `⤒` 图标（跟着窗口走，不随时间轴滚动）：
-  点一下选目录，把这条音轨导出成 `.m4a`。
+### Errors
 
-多音轨的耗时是按轨串行累加的，状态栏会显示 `共 3/3 条音轨、3 条字幕`。
+When something goes wrong, a red message appears at the bottom left of the window, showing only the first few characters. Hover to expand the full message, click to copy it to the clipboard.
 
-### 导出尺寸
+### Multiple audio tracks
 
-导出的透明视频**不再贴合原视频画幅**，而是按字幕内容裁：
+When a video has several audio tracks, each track gets its own row on the timeline (labeled “Track 1 / 2 / 3”, followed by codec and language).
+Each track is extracted, recognized, and subtitled independently. Click a row to switch to that track:
 
-* 宽度 = 这条轨道里最长一行字幕的宽度 + 左右留白；高度 = 行数 × 行高 + 上下留白；
-* 单条字幕超过 20 个字会在识别断句阶段就断开，转行由渲染器按 20 字/行折行；
-* 预览面板左上角的「清晰度」有三档（流畅 / 高清 / 超清），决定渲染字号与最终像素，
-  旁边直接显示当前这条轨道的导出尺寸，例如 `226×122 · 1 行 · 20 字/行`。
+* The subtitle list on the left switches to that track's subtitles and can be edited directly.
+* The preview below switches to that track's rendering.
+* The checkbox to the right of each “Track N” label controls whether the track participates in recognition and export; unchecked tracks are skipped (skipping recognition does not clear existing subtitles).
+* Hovering a row reveals two 20×20 buttons at the far right edge (they stay with the window, not scrolling with the timeline):
+  the upper export arrow exports that track's audio to `.m4a`; the lower red trash can deletes the whole track (including subtitles, after confirmation).
 
-因为每条轨道字幕长度不同，多轨导出会得到**几段尺寸各自不同的视频**——按需叠加到别的工程里。
+Multi-track processing is serial and cumulative; the status bar shows `3/3 tracks, 3 subtitles`.
 
-### 识别时的按钮
+### Export size
 
-识别期间「音频与字幕轨道」标题栏右侧显示**圆环进度**（始终圆环，窄窗口也不会换成长条）与百分比，
-百分比旁边是 `✕` 停止按钮：
+Exported alpha videos **no longer match the original video frame**; they are cropped around the subtitle content:
 
-* 抽音轨阶段点它，ffmpeg 立刻被中断；
-* 识别阶段点它，会直接**结束当前这条音轨**（杀掉 whisper 进程，临时文件清掉），
-  已完成的音轨保留；
+* Width = the width of the longest subtitle line in that track + horizontal padding; height = line count × line height + vertical padding.
+* A single subtitle longer than 20 characters is split during segmentation; line wrapping in the renderer uses 20 characters per line.
+* The “Quality” control at the top left of the preview has three levels (Smooth / HD / Ultra), which determine render font size and final pixels.
+  Next to it is the current track's export size, for example `226×122 · 1 line · 20 chars/line`.
+* The preview canvas renders at the **video's real resolution** (longest side capped at 1920 so 4K stays responsive), showing subtitle placement within the full frame. Only export crops the surrounding empty space.
 
-### 播放
+Because each track's subtitles differ in length, multi-track export produces **several videos with different sizes** — overlay them into other projects as needed.
 
-点「播放」会真的出声（`NAudio` + ffmpeg 先把勾选的音轨混成一个临时 wav，再播放），
-播放头跟着真实进度走，再点一下暂停。没有勾选任何轨道时默认放第一条。
-纯预览用，导出与它无关。
+### Buttons during recognition
 
-### 模型
+After importing a file, **recognition does not start automatically**: the button in the “Audio and subtitle tracks” title bar reads “Start recognition” and only runs when clicked.
+It **only recognizes checked tracks** (unchecked tracks are skipped and keep their existing subtitles). After a full run the button becomes “Re-recognize”;
+stopping midway returns it to “Start recognition”.
 
-标题栏的「本地模型 · tiny ▾」是模型菜单：
+During recognition, the title bar shows a **ring progress indicator** (always a ring, even in narrow windows) and a percentage, with an `✕` stop button next to the percentage:
 
-* **本地模型**：列出 `models/` 下的 `ggml-*.bin`，点一个就切过去；
-* 云端通道（硅基流动 / 天翼星辰）：填了 Key 才可用；
-* **模型说明（体积 / 下载地址）**：列出常用模型的体积与 HuggingFace 链接；
-* **打开 models 文件夹**：直接定位到模型目录。
+* Clicking it during audio extraction interrupts ffmpeg immediately.
+* Clicking it during recognition **ends the current track** (kills the whisper process and cleans temporary files); completed tracks are kept.
 
-### 识别质量
+### Playback
 
-识别完先进两层处理再断句：
+“Play” produces actual sound (`NAudio` + ffmpeg first mix the checked tracks into a temporary wav, then play it).
+The playhead follows real progress; click again to pause. If no track is checked, the first track is used.
+This is for preview only; export is independent.
 
-* `HallucinationFilter`：丢掉静音段的凭空编造（`[BLANK_AUDIO]`、`[MUSIC]`、`(掌声)`、套话、整段重复、语速异常）；
-  像 `[Bell]` 这种真的音效标注会保留；
-* `PunctuationRestorer`：按词间停顿补逗号/句号（有词级时间戳时用真实停顿，没有就按字数切口气），
-  括号标注不加标点。
+- Decoding/mixing can be cancelled: clicking play again or closing the file stops ffmpeg immediately with no orphan processes.
+- Media longer than 30 minutes is decoded only for the first 30 minutes in preview (the status bar says “first 30 minutes only”), and dragging the playhead beyond that does not wait for decoding.
 
-## 命令行
+### Timeline interactions
+
+* The red vertical line is the playhead: press/drag on empty timeline space and playback jumps there immediately (even while playing); double-clicking empty space also seeks.
+* Subtitle blocks: drag the middle to move the whole block (changing start/end times), drag the left/right edges to stretch; blocks stop at neighboring subtitles and never overlap.
+* Mouse wheel scrolls horizontally, Ctrl+wheel zooms anchored at the mouse position, middle-drag/Alt+left-drag pans, and the `−` / `+` buttons in the title bar also zoom.
+* The subtitle list on the left shows only each subtitle's **midpoint time** (`MM:SS.mm`); edit text directly in the input field on the right.
+
+### Models
+
+The “Local model · tiny ▾” item in the title bar is the model menu:
+
+* **Local models**: lists `ggml-*.bin` files under `models/`; click one to switch.
+* Cloud channels (SiliconFlow / TeleAI): available only after a key is configured.
+* **Model notes (size / download link)**: lists common models with sizes and HuggingFace links.
+* **Open models folder**: jumps straight to the model directory.
+
+### Recognition quality
+
+After recognition, text goes through two processing layers before segmentation:
+
+* `HallucinationFilter`: drops fabrications during silence (`[BLANK_AUDIO]`, `[MUSIC]`, `(applause)`, whole-segment repetition, abnormal speech rate);
+  genuine sound annotations such as `[Bell]` are kept. Boilerplate rules (“subtitles by…”, “… subtitle group”) only match **whole sentences**, so normal dialogue containing those words is not killed by mistake.
+* `PunctuationRestorer`: inserts commas/periods based on pauses between words (using real pauses when word timestamps exist, otherwise character-count heuristics); bracketed annotations get no punctuation.
+
+## Command line
 
 ```powershell
 SubtitleStudio.Cli --input video.mp4 --out out --format srt,vtt,ass --model models\ggml-tiny.bin
-SubtitleStudio.Cli --input video.mp4 --out out --track 2          # 只处理第 2 条音轨
+SubtitleStudio.Cli --input video.mp4 --out out --track 2          # only process audio track 2
 SubtitleStudio.Cli --input video.mp4 --out out --overlay webm --width 1920 --height 1080 --fps 30
-SubtitleStudio.Cli --input video.mp4 --waveform                   # 打印每条音轨的波形统计
-SubtitleStudio.Cli --models                                       # 列出已装模型 + 可下载模型清单
-SubtitleStudio.Cli --input clip.wav --asr-json result.json        # 只识别 wav 并输出 JSON（App 内部用）
+SubtitleStudio.Cli --input video.mp4 --waveform                   # print waveform stats per track
+SubtitleStudio.Cli --models                                       # list installed + downloadable models
+SubtitleStudio.Cli --input clip.wav --asr-json result.json        # recognize a wav and emit JSON (used internally by the App)
 ```
 
-`--out` 是**前缀**，会生成 `out.srt` / `out.vtt` / `out.ass` / `out-overlay.webm`。
-多音轨文件默认逐条处理，文件名带轨号：`out-t1.srt`、`out-t2.srt`……
-`--overlay` 用第一条（或 `--track` 指定的那条）音轨的字幕。
+`--out` is a **prefix** and produces `out.srt` / `out.vtt` / `out.ass` / `out-overlay.webm`.
+Multi-track files are processed track by track by default, with track numbers in file names: `out-t1.srt`, `out-t2.srt`, and so on.
+`--overlay` uses subtitles from the first track (or the one selected with `--track`).
 
-## 验证记录
+## Verification log
 
-* CLI 端到端（`testclip.mp4` 6 秒 + `ggml-tiny.bin`）：抽音轨 → 识别（1 段）→ 断句（1 条）→
-  写 srt/vtt/ass → 渲染 180 帧 → 编码 WebM，总耗时约 3 秒。
-* CLI 多音轨（`testclip3.mp4`，1 视频 + 3 音轨）：三条轨分别识别出 `[Bell]` / `[MUSIC]` /
-  `[screaming]`，输出 `clip-t1.srt`~`clip-t3.srt`，耗时 2.8 秒。
-* GUI：启动 → 自动加载并识别三条音轨 → 点击「音轨 2」那一行后，左侧列表换成 `[MUSIC]`、
-  状态栏变成 `音轨 2 · 1 条字幕 · 语言 en`、预览同步换成 `[MUSIC]`。
-* 真实录屏（`test/test.mp4`，1920×1080@60、HEVC、3 条 AAC 音轨、26.7 秒）：
-  三轨分别识别出 `[MUSIC]` / `[BLANK_AUDIO]` / `[BLANK_AUDIO]`；GUI 导出 1080p60 WebM 成功，
-  得到 `test-t1-overlay.webm`（198 KB）。
-* 失败路径：导出到不可写目录、输出文件被独占占用两种情况都只弹提示并退出，
-  不再崩溃；错误信息里带 ffmpeg 原文（`Permission denied`）。
-* 按字幕裁尺寸（`testclip3.mp4`）：三条轨道导出得到 `226×122`、`326×122`、`440×122`
-  三段落宽不同的 WebM；取消勾选音轨 2 后只导出 t1 与 t3。
-* 每轨音频导出：点第一行右侧 `↓` 得到 `testclip3-t1.m4a`（137 KB）。
-* 停止识别（`long.m4a`，180 秒双音轨）：抽音轨阶段点 `■` 立即停；识别阶段点 `■`
-  会在当前音轨跑完后停下，状态栏显示「识别已停止（已完成的音轨保留）」，已完成轨的字幕保留。
-* 播放：点「播放」后播放头推进（截图时 2.52s），按钮变成「暂停」，状态栏「播放中（只放勾选的音轨）」，
-  音频经 ffmpeg 混流 + NAudio 真实出声。
-* 悬浮导出：把鼠标移到「音轨 2」那一行，右侧出现 `⤒`，点一下得到 `testclip3-t2.m4a`（137 KB）。
-* 识别质量：`testclip3.mp4` 三轨现在只剩 `[Bell]` 与 `[screaming]`（`[MUSIC]` 被当静音标注过滤），
-  括号标注不再被补句号。
-* 模型菜单：截图确认可展开「本地模型 / 云端通道（未填 Key）/ 模型说明 / 打开 models 文件夹」。
-* 停止识别（`long.m4a`，180 秒）：识别中直接点 `✕`，当前音轨被中断，
-  状态栏「识别已停止（已完成的音轨保留）」，进程存活无崩溃。
-* 导出目录不可写（把 `SUBTITLESTUDIO_EXPORT_DIR` 指到 `C:\Windows\System32\...`）：
-  自动改存到可写目录（依次尝试 `%LOCALAPPDATA%\SubtitleStudio\exports`、
-  `我的视频\SubtitleStudio`、程序目录\exports、`%TEMP%`），界面提示改存位置，导出照常完成。
+* CLI end-to-end (`testclip.mp4`, 6 seconds + `ggml-tiny.bin`): extract audio → recognize (1 segment) → segment (1 cue) → write srt/vtt/ass → render 180 frames → encode WebM, about 3 seconds total.
+* CLI multi-track (`testclip3.mp4`, 1 video + 3 audio tracks): the three tracks recognized `[Bell]` / `[MUSIC]` / `[screaming]`, producing `clip-t1.srt` through `clip-t3.srt` in 2.8 seconds.
+* GUI: launch → automatically load and extract three tracks (no automatic recognition) → click “Start recognition” → button becomes “Re-recognize” when done;
+  clicking the “Track 2” row switches the list to `[MUSIC]`, the status bar to `Track 2 · 1 subtitle · language en`, and the preview to `[MUSIC]`.
+* Real screen recording (`test/test.mp4`, 1920×1080@60, HEVC, 3 AAC tracks, 26.7 seconds): tracks recognized `[MUSIC]` / `[BLANK_AUDIO]` / `[BLANK_AUDIO]`; GUI export of a 1080p60 WebM succeeded, producing `test-t1-overlay.webm` (198 KB).
+* Failure paths: exporting to an unwritable directory and an exclusively locked output file both show a message and exit without crashing; error text includes the original ffmpeg message (`Permission denied`).
+* Size cropped to subtitles (`testclip3.mp4`): three tracks exported as `226×122`, `326×122`, and `440×122` WebMs; unchecking track 2 exports only t1 and t3.
+* Per-track audio export: clicking the `↓` on the right of the first row produced `testclip3-t1.m4a` (137 KB).
+* Stop recognition (`long.m4a`, 180 seconds, two tracks): clicking `■` during extraction stops immediately; during recognition it stops after the current track finishes, the status bar shows “Recognition stopped (completed tracks kept)”, and completed tracks keep their subtitles.
+* Playback: after clicking “Play”, the playhead advances (2.52 s in the screenshot), the button becomes “Pause”, the status bar shows “Playing (checked tracks only)”, and audio is mixed by ffmpeg + NAudio and actually audible.
+* Hover export: hovering the “Track 2” row shows `⤒` on the right; clicking it produced `testclip3-t2.m4a` (137 KB).
+* Recognition quality: on `testclip3.mp4` only `[Bell]` and `[screaming]` remain (`[MUSIC]` is filtered as a silence annotation), and bracketed annotations no longer get trailing periods.
+* Model menu: screenshots confirm the sections “Local models / Cloud channels (no key) / Model notes / Open models folder”.
+* Stop recognition (`long.m4a`, 180 seconds): clicking `✕` during recognition interrupts the current track, the status bar shows “Recognition stopped (completed tracks kept)”, and the process survives without crashing.
+* Unwritable export directory (pointing `SUBTITLESTUDIO_EXPORT_DIR` at `C:\Windows\System32\...`):
+  the app automatically switches to a writable directory (trying `%LOCALAPPDATA%\SubtitleStudio\exports`, `Videos\SubtitleStudio`, `exports` next to the app, and `%TEMP%` in order), tells the user where it saved, and completes the export.
+* Settings persistence (this machine has security software blocking unsigned programs from writing the user directory): when neither `%LOCALAPPDATA%` nor `Documents` is writable,
+  settings fall back to `config\settings.json` next to the app, and `CLI --settings --set-backend` prints `[saved] ...\config\settings.json`;
+  the Settings window saves automatically whether closed with “Done” or the × button (write and forget).
+* Window position: moving the window to `(100,60) 1100×700` and closing it stores `WindowX/Y/Width/Height` in `settings.json`; after restart `GetWindowRect` reads back exactly the same values. If the screen cannot fit it, the size is clamped and visible area checked, so it never restores off-screen.
 
-## 排错
+## Troubleshooting
 
-* **导出 / 识别失败**：界面左下角会出现红色提示，只显示前几十个字，鼠标悬停看完整内容，点一下把完整错误复制到剪贴板。错误里会带上 ffmpeg 自己的输出（例如 `Error opening output ... Permission denied`、`moov atom not found`），不再只有一句「管道已结束」。
-* **崩溃日志**：程序里所有没人接住的异常都会写进 `%LOCALAPPDATA%\SubtitleStudio\crash.log`，不会再弹「应用程序发生异常 0xe0434352」。遇到异常界面会留在原地（状态栏给提示），把日志发出来就能定位。
-* **导出目录**：设置环境变量 `SUBTITLESTUDIO_EXPORT_DIR` 可以跳过文件夹选择框，直接导出到指定目录（自动化 / 批处理用）。
-* **写入失败的两种原因**：程序会实际试写探针文件来判断。若是**权限/受控文件夹访问**拦的，底栏会出现「以管理员重启」按钮，
-  点一下走 UAC 提权重开；若是系统层面的限制（磁盘只读、目录被别的程序独占），则直接提示原因与可换的目录。
+* **Export / recognition failures**: a red message appears at the bottom left of the UI, showing the first few dozen characters. Hover for the full text, click to copy it to the clipboard. Errors include ffmpeg's own output (for example `Error opening output ... Permission denied`, `moov atom not found`) instead of just “pipe ended”.
+* **Crash log**: every unhandled exception is written to `%LOCALAPPDATA%\SubtitleStudio\crash.log` instead of showing “application exception 0xe0434352”. The UI stays open (with a status bar message) when an exception occurs; share the log to diagnose.
+* **Export directory**: set the `SUBTITLESTUDIO_EXPORT_DIR` environment variable to skip the folder picker and export to a fixed directory (for automation / batch processing).
+* **Two causes of write failures**: the app actually writes a probe file to decide. If **permissions / Controlled Folder Access** are blocking, the bottom bar shows a “Restart as administrator” button;
+  clicking it relaunches through UAC. If the limitation is at the system level (read-only disk, directory locked by another program), the reason and alternative directories are shown directly.
 
-## 已知限制
+## Known limitations
 
-* MP4/H.264 不支持 alpha 通道，透明字幕请用 WebM 或 ProRes 4444。
-* 云端 ASR 通道需要 API Key（见 `src/SubtitleStudio.Core/Asr/AsrChannels.cs`），且本机 TLS 有问题，
-  换到正常机器再用。
-* 长视频识别是串行的：可以中途停止，但停下后要重新识别只能整段重来（已完成的音轨不会丢）。
-* 进度在「音频与字幕轨道」标题栏右侧，识别期间显示**圆环**与百分比（始终圆环，不按窗口宽窄切换）。
-* 面板标题栏上的「▾ 菜单」「📌 固定」按钮已隐藏，只保留拖动与分隔条。
-* 导出按素材原始帧率走（60fps 的 1080p 录屏编码 VP9 会比较慢，27 秒素材约 80 秒）；
-  导出尺寸按字幕裁，所以像素量比原视频小很多，实际会比全画幅快。
+* MP4/H.264 does not support an alpha channel; use WebM or ProRes 4444 for transparent subtitles.
+* Cloud ASR channels require an API key (see `src/SubtitleStudio.Core/Asr/RemoteAsrProvider.cs` and `TeleAiClient.cs`).
+* Long-video recognition is serial: it can be stopped midway, but restarting requires processing the whole clip again (completed tracks are preserved).
+* Progress appears at the right of the “Audio and subtitle tracks” title bar as a **ring** and percentage during recognition (always a ring, regardless of window width).
+* The “▾ menu” and “📌 pin” buttons in pane title bars are hidden; drag titles to move/dock (VSCode style), and click “Reset layout” in the bottom bar if the layout gets scattered.
+* Export uses the source frame rate (encoding a 60 fps 1080p screen recording to VP9 is relatively slow: about 80 seconds for 27 seconds of footage).
+  Export size is cropped to the subtitles, so the pixel count is much smaller than the original and it is faster than a full-frame export.
+* Preview decodes only the first 30 minutes; API keys are stored in plain text in settings.json (see the note in Settings).
 
-## 开发小工具
+## Developer utilities
 
-`tools/shot-window.ps1` 按窗口截图（类似录屏软件的窗口捕获）：取 `DwmGetWindowAttribute`
-的真实窗口边界，抢前台后再抓屏，抢不到就退化成 `PrintWindow` 自己渲染。
+`tools/shot-window.ps1` captures a window like a screen recorder's window capture: it uses `DwmGetWindowAttribute`
+for the real window bounds, brings the window to the foreground, then grabs the screen; if that fails it falls back to rendering via `PrintWindow`.
 
 ```powershell
-.\\run.ps1 ..\\.tools\\testclip3.mp4
-.\\tools\\shot-window.ps1 -Out shot.png
+.\run.ps1 ..\.tools\testclip3.mp4
+.\tools\shot-window.ps1 -Out shot.png
 ```

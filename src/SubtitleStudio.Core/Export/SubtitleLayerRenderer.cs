@@ -19,6 +19,9 @@ public sealed class SubtitleLayerRenderer : IDisposable
     private readonly SKCanvas _canvas;
     private readonly SKPaint _stroke;
     private readonly SKPaint _fill;
+
+    /// <summary>阴影画笔复用：导出是逐帧调用的热路径，不能每行文字都 new 一个。</summary>
+    private readonly SKPaint _shadow;
     private byte[]? _buffer;
 
     public SubtitleLayerRenderer(int width, int height)
@@ -39,6 +42,7 @@ public sealed class SubtitleLayerRenderer : IDisposable
         _canvas = new SKCanvas(_bitmap);
         _stroke = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke };
         _fill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        _shadow = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = new SKColor(0, 0, 0, 160) };
         Clear();
     }
 
@@ -51,6 +55,9 @@ public sealed class SubtitleLayerRenderer : IDisposable
 
     /// <summary>字体解析很贵（可能要从磁盘读 ttf），按「家族 + 粗细」缓存。</summary>
     private static readonly Dictionary<(string Family, bool Bold), (SKTypeface Face, bool FromFile)> Typefaces = new();
+
+    /// <summary>缓存上限：超过就整表清掉（文件字体要 Dispose），避免导入很多字体后只增不减。</summary>
+    private const int MaxCachedTypefaces = 16;
 
     private static readonly Lock TypefaceLock = new();
 
@@ -75,7 +82,21 @@ public sealed class SubtitleLayerRenderer : IDisposable
         var loaded = LoadTypeface(style);
 
         lock (TypefaceLock)
+        {
+            if (Typefaces.Count >= MaxCachedTypefaces)
+            {
+                // 文件加载的字体是我们独占的，清缓存时一并释放；系统字体不归我们管
+                foreach (var entry in Typefaces.Values)
+                {
+                    if (entry.FromFile)
+                        entry.Face.Dispose();
+                }
+
+                Typefaces.Clear();
+            }
+
             Typefaces[key] = loaded;
+        }
 
         return loaded;
     }
@@ -166,15 +187,10 @@ public sealed class SubtitleLayerRenderer : IDisposable
 
                 if (shadow > 0)
                 {
-                    using var shadowPaint = new SKPaint
-                    {
-                        IsAntialias = true,
-                        Style = SKPaintStyle.Fill,
-                        Color = new SKColor(0, 0, 0, 160),
-                        TextSize = fontPx,
-                        Typeface = typeface
-                    };
-                    _canvas.DrawText(line, x + shadow, y + shadow, shadowPaint);
+                    _shadow.TextSize = fontPx;
+                    _shadow.FakeBoldText = fontFromFile && style.Bold;
+                    _shadow.Typeface = typeface;
+                    _canvas.DrawText(line, x + shadow, y + shadow, _shadow);
                 }
 
                 if (_stroke.StrokeWidth > 0)
@@ -248,7 +264,6 @@ public sealed class SubtitleLayerRenderer : IDisposable
         foreach (var paragraph in text.Replace("\r\n", "\n").Split('\n'))
         {
             var current = string.Empty;
-            var currentWidth = 0f;
 
             foreach (var ch in paragraph)
             {
@@ -259,12 +274,10 @@ public sealed class SubtitleLayerRenderer : IDisposable
                 {
                     lines.Add(current.Trim());
                     current = ch.ToString();
-                    currentWidth = paint.MeasureText(current);
                 }
                 else
                 {
                     current = candidate;
-                    currentWidth = candidateWidth;
                 }
             }
 
@@ -309,5 +322,6 @@ public sealed class SubtitleLayerRenderer : IDisposable
         _bitmap.Dispose();
         _stroke.Dispose();
         _fill.Dispose();
+        _shadow.Dispose();
     }
 }

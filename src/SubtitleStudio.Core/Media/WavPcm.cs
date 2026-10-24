@@ -42,4 +42,35 @@ public static class WavPcm
         // 没找到 data 块，就当整个文件是裸 PCM
         return bytes;
     }
+
+    /// <summary>把 PCM16 单声道数据写成标准 RIFF wav（切片上传云端时用）。</summary>
+    public static void WritePcm16(string path, byte[] pcm, int sampleRate)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        using var writer = new BinaryWriter(stream);
+
+        const ushort bitsPerSample = 16;
+        const ushort channels = 1;
+        var byteRate = sampleRate * channels * bitsPerSample / 8;
+        var blockAlign = (ushort)(channels * bitsPerSample / 8);
+
+        writer.Write("RIFF"u8);
+        writer.Write(36 + pcm.Length);
+        writer.Write("WAVE"u8);
+        writer.Write("fmt "u8);
+        writer.Write(16);                  // PCM 的 fmt 块固定 16 字节
+        writer.Write((ushort)1);           // PCM
+        writer.Write(channels);
+        writer.Write(sampleRate);
+        writer.Write(byteRate);
+        writer.Write(blockAlign);
+        writer.Write(bitsPerSample);
+        writer.Write("data"u8);
+        writer.Write(pcm.Length);
+        writer.Write(pcm);
+    }
 }

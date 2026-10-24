@@ -25,6 +25,10 @@ public sealed partial class TimelineControl
     private double _cueStart0;
     private double _cueEnd0;
 
+    /// <summary>拖动字幕块时的活动范围：不能压到相邻字幕（按下时算好，拖动中别的块不动）。</summary>
+    private double _cueMinStart;
+    private double _cueMaxEnd;
+
     /// <summary>当前音轨上被点中的字幕块；顺带告诉调用方是不是抓在边缘。</summary>
     private CueItem? HitTestCue(AppState state, double x, out bool nearEdgeLeft, out bool nearEdgeRight)
     {
@@ -108,6 +112,18 @@ public sealed partial class TimelineControl
             _dragCue = cue;
             _cueStart0 = cue.Start;
             _cueEnd0 = cue.End;
+
+            // 相邻字幕的边界：拖过去会重叠，所以在这里就把活动范围夹死
+            _cueMinStart = state.Cues
+                .Where(c => !ReferenceEquals(c, cue) && c.Start < cue.Start)
+                .Select(c => c.End)
+                .DefaultIfEmpty(0)
+                .Max();
+            _cueMaxEnd = state.Cues
+                .Where(c => !ReferenceEquals(c, cue) && c.Start > cue.Start)
+                .Select(c => (double?)c.Start)
+                .Min() ?? double.MaxValue;
+
             _mode = nearRight ? DragMode.ResizeEnd : nearLeft ? DragMode.ResizeStart : DragMode.MoveCue;
             e.Pointer.Capture(this);
             e.Handled = true;
@@ -148,19 +164,23 @@ public sealed partial class TimelineControl
 
             case DragMode.MoveCue when _dragCue is not null:
             {
-                var start = Math.Max(0, _cueStart0 + (pos.X - _dragOrigin.X) / Pps);
-                _dragCue.SetBounds(start, start + (_cueEnd0 - _cueStart0));
+                var duration = _cueEnd0 - _cueStart0;
+                var start = Math.Clamp(
+                    _cueStart0 + (pos.X - _dragOrigin.X) / Pps,
+                    _cueMinStart,
+                    Math.Max(_cueMinStart, _cueMaxEnd - duration));
+                _dragCue.SetBounds(start, start + duration);
                 state.SchedulePreview();
                 break;
             }
 
             case DragMode.ResizeStart when _dragCue is not null:
-                _dragCue.SetBounds(Math.Min(Math.Max(0, XToTime(pos.X)), _cueEnd0 - 0.2), _cueEnd0);
+                _dragCue.SetBounds(Math.Clamp(XToTime(pos.X), _cueMinStart, _cueEnd0 - 0.2), _cueEnd0);
                 state.SchedulePreview();
                 break;
 
             case DragMode.ResizeEnd when _dragCue is not null:
-                _dragCue.SetBounds(_cueStart0, Math.Max(_cueStart0 + 0.2, XToTime(pos.X)));
+                _dragCue.SetBounds(_cueStart0, Math.Clamp(XToTime(pos.X), _cueStart0 + 0.2, _cueMaxEnd));
                 state.SchedulePreview();
                 break;
         }
@@ -195,13 +215,13 @@ public sealed partial class TimelineControl
             InvalidateVisual();
 
             if (remaining == 0)
-                state.Status = $"已删除 {name}，当前文件没有音轨了";
+                state.Status = Loc.T("Status.TrackDeleted", name);
             else
-                state.Status = $"已删除 {name}（剩 {remaining} 条音轨）";
+                state.Status = Loc.T("Status.TrackDeletedRemaining", name, remaining);
         }
         catch (Exception ex)
         {
-            state.ReportError("删除音轨失败：" + ex.Message);
+            state.ReportError(Loc.T("Error.DeleteTrack", ex.Message));
         }
     }
 
@@ -213,7 +233,7 @@ public sealed partial class TimelineControl
         }
         catch (Exception ex)
         {
-            state.ReportError("导出音频失败：" + ex.Message);
+            state.ReportError(Loc.T("Error.ExportAudio", ex.Message));
         }
     }
 

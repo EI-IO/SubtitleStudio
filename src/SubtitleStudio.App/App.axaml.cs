@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using SubtitleStudio.App.Services;
 using SubtitleStudio.App.ViewModels;
 using SubtitleStudio.App.Views;
+using SubtitleStudio.Core.Asr;
 
 namespace SubtitleStudio.App;
 
@@ -15,12 +17,22 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        Services.CrashReporter.Install();
+        CrashReporter.Install();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // 用户导入的字体按文件加载，不进系统字体库
-            SubtitleStudio.Core.Export.SubtitleLayerRenderer.FontFileResolver = Services.FontInstaller.Resolve;
+            SubtitleStudio.Core.Export.SubtitleLayerRenderer.FontFileResolver = FontInstaller.Resolve;
+
+            // 语言要在建窗口前定下来：XAML 里的 DynamicResource 第一次就能取到正确文案
+            var settings = AsrSettingsStore.Load();
+            Loc.Load();
+
+            var envLanguage = Environment.GetEnvironmentVariable("SUBTITLESTUDIO_LANG");
+            Loc.Use(string.IsNullOrWhiteSpace(envLanguage) ? settings.Language : envLanguage);
+
+            // 从没选过语言（也没被环境变量指定）→ 首次启动弹平铺选择窗
+            var firstRun = string.IsNullOrWhiteSpace(envLanguage) && string.IsNullOrWhiteSpace(settings.Language);
 
             var state = new AppState();
             var window = new MainWindow { DataContext = state };
@@ -29,12 +41,25 @@ public partial class App : Application
             if (!string.IsNullOrWhiteSpace(startupFile) && File.Exists(startupFile))
                 window.StartupFile = Path.GetFullPath(startupFile);
             desktop.MainWindow = window;
+
+            if (firstRun)
+            {
+                window.Opened += async (_, _) =>
+                {
+                    var code = await LanguagePickerWindow.PickAsync(window);
+                    if (!string.IsNullOrWhiteSpace(code))
+                    {
+                        state.SetLanguage(code);
+                    }
+                    else
+                    {
+                        // 直接关掉也算选过了：记下当前（跟随系统）的语言，下次不再弹
+                        state.PersistLanguage();
+                    }
+                };
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
-
-        // 语言：SUBTITLESTUDIO_LANG 优先，否则跟随系统
-        Services.Loc.LoadFromFiles();
-        Services.Loc.Use(Environment.GetEnvironmentVariable("SUBTITLESTUDIO_LANG"));
     }
 }

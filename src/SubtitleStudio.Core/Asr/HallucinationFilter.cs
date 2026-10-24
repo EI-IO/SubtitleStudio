@@ -160,7 +160,14 @@ public static class HallucinationFilter
         foreach (var phrase in SpamPhrases)
         {
             var n = Normalize(phrase);
-            if (n.Length > 0 && normalizedKey.Contains(n, StringComparison.Ordinal))
+            if (n.Length == 0)
+                continue;
+
+            // 整句相等必丢；长套话允许作为句子的结尾出现（幻觉常接在正文后面）。
+            // 短词（"字幕由""字幕组"）不做子串匹配，否则"字幕由谁负责"这种正常台词会被误杀。
+            if (normalizedKey == n)
+                return true;
+            if (n.Length >= 4 && normalizedKey.EndsWith(n, StringComparison.Ordinal))
                 return true;
         }
 

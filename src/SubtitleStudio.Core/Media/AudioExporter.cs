@@ -39,21 +39,33 @@ public static class AudioExporter
 
         using var process = FfmpegTools.Start(ffmpeg, args, redirectStdout: true);
 
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
-        while (await process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        try
         {
-            if (!line.StartsWith("out_time_us=", StringComparison.Ordinal) || totalSeconds <= 0)
-                continue;
-
-            if (long.TryParse(line["out_time_us=".Length..], NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out var us))
+            while (await process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
             {
-                progress?.Report(Math.Clamp(us / 1_000_000d / totalSeconds, 0, 1));
+                if (!line.StartsWith("out_time_us=", StringComparison.Ordinal) || totalSeconds <= 0)
+                    continue;
+
+                if (long.TryParse(line["out_time_us=".Length..], NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out var us))
+                {
+                    progress?.Report(Math.Clamp(us / 1_000_000d / totalSeconds, 0, 1));
+                }
             }
+
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // 取消时杀掉 ffmpeg，避免孤儿进程继续写目标文件
+            FfmpegTools.TryKill(process);
+            try { await stderrTask.ConfigureAwait(false); } catch { /* 进程被杀后读取随之结束 */ }
+            TempWorkspace.TryDelete(outputPath);
+            throw;
         }
 
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         var stderr = await stderrTask.ConfigureAwait(false);
 
         if (process.ExitCode != 0 || !File.Exists(outputPath))

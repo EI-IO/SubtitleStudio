@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SubtitleStudio.App.Services;
 using SubtitleStudio.Core.Media;
 using SubtitleStudio.Core.Models;
 
@@ -22,7 +23,10 @@ public sealed partial class TrackItem : ObservableObject
 
     public int Number => Info.Ordinal;
 
-    public string Label => Info.Describe();
+    /// <summary>「音轨 N」，状态栏和对话框里用（跟着语言切换）。</summary>
+    public string LabelShort => Loc.T("Track.Number", Number);
+
+    public string Label => Loc.T("Track.Label", LabelShort, Info.Codec, ChannelsText());
 
     public ObservableCollection<CueItem> Cues { get; } = new();
 
@@ -31,7 +35,23 @@ public sealed partial class TrackItem : ObservableObject
     [ObservableProperty] private WaveformData? _waveform;
 
     /// <summary>识别状态短句，例如「完成 · 12 条 · zh」。</summary>
-    [ObservableProperty] private string _status = "等待识别";
+    [ObservableProperty] private string _status = Loc.T("Track.Waiting");
+
+    private string ChannelsText() => Info.Channels switch
+    {
+        <= 0 => Loc.T("Track.ChannelsUnknown"),
+        1 => Loc.T("Track.ChannelsMono"),
+        2 => Loc.T("Track.ChannelsStereo"),
+        var channels => Loc.T("Track.ChannelsN", channels)
+    };
+
+    /// <summary>语言切换后重算拼出来的轨道名。</summary>
+    public void ApplyLanguage()
+    {
+        OnPropertyChanged(nameof(LabelShort));
+        OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(Cues));
+    }
 
     /// <summary>整段语言，识别完才有值。</summary>
     [ObservableProperty] private string? _language;

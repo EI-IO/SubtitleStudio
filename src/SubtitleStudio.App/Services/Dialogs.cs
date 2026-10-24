@@ -13,11 +13,14 @@ public static class Dialogs
         Window? owner,
         string title,
         string message,
-        string yes = "确定",
-        string no = "取消")
+        string? yes = null,
+        string? no = null)
     {
         if (owner is null)
             return false;
+
+        yes ??= Loc.T("Common.OK");
+        no ??= Loc.T("Common.Cancel");
 
         var result = false;
         var dialog = new Window

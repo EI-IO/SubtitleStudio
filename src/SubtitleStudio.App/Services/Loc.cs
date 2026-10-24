@@ -1,106 +1,79 @@
 using System.Globalization;
 using System.Text.Json;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Platform;
 
 namespace SubtitleStudio.App.Services;
 
+/// <summary>一种界面语言的元信息；Name 是语言自己的名字（简体中文 / English / 日本語）。</summary>
+public sealed record LanguageInfo(string Code, string Name);
+
 /// <summary>
-/// 极简国际化：键 → 文案。
-/// 目前内置中/英两套，之后要加语种只要往 <see cref="Languages"/> 里加一份字典，
-/// 或把同结构的 JSON 放到 <c>lang/</c> 目录由 <see cref="LoadFromFiles"/> 合并进来。
+/// 界面文案：键 → 文案。内置 zh/en 两份 JSON（编译进程序），
+/// 再把可执行文件目录下 lang/*.json 的外部语言包合并进来——加语言只要放一个文件。
+/// 语言包统一格式：{ "code": "ja", "name": "日本語", "strings": { ... } }。
+/// 切换语言会更新 Application 资源里的 L.* 项，XAML 的 DynamicResource 立即重绑，不用重开窗口。
 /// </summary>
 public static class Loc
 {
     public const string SystemLanguage = "system";
 
-    private static readonly Dictionary<string, string> Zh = new(StringComparer.Ordinal)
-    {
-        ["Menu.LocalModels"] = "本地模型",
-        ["Menu.SiliconFlow"] = "硅基流动",
-        ["Menu.TeleAi"] = "天翼星辰",
-        ["Menu.Settings"] = "设置",
-        ["Menu.NoLocalModel"] = "models 里还没有模型，去「设置」里下载",
-        ["Menu.RefreshModels"] = "刷新模型列表",
-        ["Menu.NoCloudModel"] = "点「刷新模型列表」获取",
-        ["Menu.NoKey"] = "还没配置",
-        ["Menu.GoSettings"] = "去设置",
-        ["Menu.Later"] = "稍后",
-        ["Menu.NeedKeySuffix"] = "还没填，要现在去设置里填吗？",
-        ["Status.NeedKey"] = "还没配置 {0} 的凭证，点「设置」填一下",
-        ["Tracks.Delete.Title"] = "删除音轨",
-        ["Tracks.Delete.Message"] = "要删除 {0} 吗？这条音轨和它的 {1} 条字幕会一起删掉，删除后不可恢复。",
-        ["Tracks.Delete.Yes"] = "删除",
-        ["Tracks.Delete.Cancel"] = "取消",
-        ["Tracks.Clear.Title"] = "清空字幕",
-        ["Tracks.Clear.Message"] = "要清空 {0} 的 {1} 条字幕吗？清空后不可恢复。",
-        ["Tracks.Clear.Yes"] = "清空",
-        ["Common.Cancel"] = "取消",
-        ["Common.Save"] = "保存",
-        ["Settings.Title"] = "设置",
-        ["Style.TextColor"] = "文字颜色",
-        ["Style.OutlineColor"] = "描边颜色",
-    };
-
-    private static readonly Dictionary<string, string> En = new(StringComparer.Ordinal)
-    {
-        ["Menu.LocalModels"] = "Local models",
-        ["Menu.SiliconFlow"] = "SiliconFlow",
-        ["Menu.TeleAi"] = "TeleAI",
-        ["Menu.Settings"] = "Settings",
-        ["Menu.NoLocalModel"] = "No model in models/ — download one in Settings",
-        ["Menu.RefreshModels"] = "Refresh model list",
-        ["Menu.NoCloudModel"] = "Click \"Refresh model list\" to fetch",
-        ["Menu.NoKey"] = "Not configured",
-        ["Menu.GoSettings"] = "Open settings",
-        ["Menu.Later"] = "Later",
-        ["Menu.NeedKeySuffix"] = "has no credential yet. Open settings now?",
-        ["Status.NeedKey"] = "No credential for {0} — open Settings to fill it in",
-        ["Tracks.Delete.Title"] = "Delete track",
-        ["Tracks.Delete.Message"] = "Delete {0}? Its {1} subtitle(s) will be removed as well. This cannot be undone.",
-        ["Tracks.Delete.Yes"] = "Delete",
-        ["Tracks.Delete.Cancel"] = "Cancel",
-        ["Tracks.Clear.Title"] = "Clear subtitles",
-        ["Tracks.Clear.Message"] = "Clear {1} subtitle(s) of {0}? This cannot be undone.",
-        ["Tracks.Clear.Yes"] = "Clear",
-        ["Common.Cancel"] = "Cancel",
-        ["Common.Save"] = "Save",
-        ["Settings.Title"] = "Settings",
-        ["Style.TextColor"] = "Text color",
-        ["Style.OutlineColor"] = "Outline color",
-    };
-
+    private static readonly Dictionary<string, LanguageInfo> Meta = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Dictionary<string, string>> Languages =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["zh"] = Zh,
-            ["en"] = En
-        };
+        new(StringComparer.OrdinalIgnoreCase);
 
-    private static Dictionary<string, string> _current = Zh;
+    private static Dictionary<string, string> _current = new(StringComparer.Ordinal);
+    private static ResourceDictionary? _resource;
 
-    /// <summary>当前语言代码（zh / en）。</summary>
+    /// <summary>当前语言代码（zh / en / 外部包代码）。</summary>
     public static string Current { get; private set; } = "zh";
 
-    /// <summary>可用语言列表。</summary>
-    public static IReadOnlyList<string> Available => Languages.Keys.ToList();
+    /// <summary>语言切换后触发；C# 侧拼出来的文案（状态栏、菜单、面板标题）靠它刷新。</summary>
+    public static event Action? Changed;
 
-    /// <summary>切换语言；未知语言回落到中文。</summary>
+    /// <summary>可用语言，简体中文和 English 排前面，其余按代码排序。</summary>
+    public static IReadOnlyList<LanguageInfo> Available
+    {
+        get
+        {
+            return Languages.Keys
+                .Select(code => Meta.TryGetValue(code, out var info) ? info : new LanguageInfo(code, code))
+                .OrderBy(l => l.Code is "zh" ? 0 : l.Code is "en" ? 1 : 2)
+                .ThenBy(l => l.Code, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    /// <summary>启动时调用一次：加载内置语言包，再扫描外部 lang 目录。</summary>
+    public static void Load()
+    {
+        Languages.Clear();
+        Meta.Clear();
+
+        LoadPack(ReadEmbedded("zh.json"), "zh");
+        LoadPack(ReadEmbedded("en.json"), "en");
+        LoadFromFiles();
+
+        // 内置包都读不到（理论上不会）时至少保证界面不是全空
+        if (Languages.Count == 0)
+            Merge("zh", new Dictionary<string, string>());
+    }
+
+    /// <summary>切换语言；未知代码回落到系统语言，再不行回落到中文。</summary>
     public static void Use(string? language)
     {
-        var code = (language ?? SystemLanguage).Trim();
-
-        if (code.Equals(SystemLanguage, StringComparison.OrdinalIgnoreCase))
-            code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-
-        if (Languages.TryGetValue(code, out var map))
+        var code = Normalize(language);
+        if (!Languages.TryGetValue(code, out var map))
         {
-            _current = map;
-            Current = code;
+            code = Languages.ContainsKey("zh") ? "zh" : Languages.Keys.FirstOrDefault() ?? "zh";
+            map = Languages.TryGetValue(code, out var fallback) ? fallback : new Dictionary<string, string>();
         }
-        else
-        {
-            _current = Zh;
-            Current = "zh";
-        }
+
+        Current = code;
+        _current = map;
+        ApplyResources();
+        Changed?.Invoke();
     }
 
     /// <summary>取文案；缺键时原样返回键名，方便发现漏翻。</summary>
@@ -121,9 +94,13 @@ public static class Loc
         }
     }
 
+    /// <summary>语言自己的名字，例如 zh → 简体中文。</summary>
+    public static string NameOf(string code) =>
+        Meta.TryGetValue(code, out var info) ? info.Name : code;
+
     /// <summary>
-    /// 扫描可执行文件目录下的 lang/*.json（如 lang/ja.json），文件名即语言代码，
-    /// 内容形如 { "键": "文案" }，合并进对应语言。缺文件就跳过。
+    /// 扫描可执行文件目录下的 lang/*.json，文件名即语言代码（文件里也声明了 code，以文件内为准）。
+    /// 每次调用都会合并，便于运行中补装语言包后重新打开选择窗。
     /// </summary>
     public static void LoadFromFiles()
     {
@@ -135,13 +112,15 @@ public static class Loc
 
             foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
             {
-                var code = Path.GetFileNameWithoutExtension(file).Trim().ToLowerInvariant();
-                if (code.Length == 0)
-                    continue;
-
-                var entries = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file));
-                if (entries is { Count: > 0 })
-                    Merge(code, entries);
+                var fallback = Path.GetFileNameWithoutExtension(file).Trim().ToLowerInvariant();
+                try
+                {
+                    LoadPack(File.ReadAllText(file), fallback);
+                }
+                catch
+                {
+                    // 单个语言包坏了只跳过它
+                }
             }
         }
         catch
@@ -150,16 +129,134 @@ public static class Loc
         }
     }
 
-    /// <summary>把外部 JSON（{ "键": "文案" }）合并进当前语言，便于后期加语种。</summary>
+    /// <summary>把一份外部条目并进某个语言（供测试 / 扩展用）。</summary>
     public static void Merge(string language, IReadOnlyDictionary<string, string> entries)
     {
-        if (!Languages.TryGetValue(language, out var map))
+        var code = language.Trim().ToLowerInvariant();
+        if (code.Length == 0)
+            return;
+
+        if (!Languages.TryGetValue(code, out var map))
         {
             map = new Dictionary<string, string>(StringComparer.Ordinal);
-            Languages[language] = map;
+            Languages[code] = map;
         }
 
         foreach (var (key, value) in entries)
             map[key] = value;
+
+        if (!Meta.ContainsKey(code))
+            Meta[code] = new LanguageInfo(code, code);
+    }
+
+    private static void LoadPack(string? json, string? fallbackCode)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return;
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            return;
+
+        var entries = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? code;
+        string? name;
+
+        if (root.TryGetProperty("strings", out var strings) && strings.ValueKind == JsonValueKind.Object)
+        {
+            // 统一格式：{ "code": "...", "name": "...", "strings": { ... } }
+            code = GetString(root, "code");
+            name = GetString(root, "name");
+
+            foreach (var property in strings.EnumerateObject())
+            {
+                if (property.Value.ValueKind == JsonValueKind.String)
+                    entries[property.Name] = property.Value.GetString() ?? string.Empty;
+            }
+        }
+        else
+        {
+            // 兼容老的平铺格式：直接 { "键": "文案" }
+            code = GetString(root, "code");
+            name = GetString(root, "name");
+
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Value.ValueKind == JsonValueKind.String
+                    && property.Name is not ("code" or "name"))
+                {
+                    entries[property.Name] = property.Value.GetString() ?? string.Empty;
+                }
+            }
+        }
+
+        code = (code ?? fallbackCode)?.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(code) || entries.Count == 0)
+            return;
+
+        Merge(code, entries);
+        Meta[code] = new LanguageInfo(code, string.IsNullOrWhiteSpace(name) ? code : name.Trim());
+    }
+
+    private static string? GetString(JsonElement root, string property) =>
+        root.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static string? ReadEmbedded(string fileName)
+    {
+        try
+        {
+            using var stream = AssetLoader.Open(
+                new Uri($"avares://SubtitleStudio/Assets/lang/{fileName}", UriKind.Absolute));
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string Normalize(string? language)
+    {
+        var code = (language ?? SystemLanguage).Trim().ToLowerInvariant();
+
+        if (code is "" or SystemLanguage)
+        {
+            var system = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
+            return Languages.ContainsKey(system)
+                ? system
+                : Languages.ContainsKey("en") ? "en" : "zh";
+        }
+
+        // 接受 zh-CN / en-US 这类带地区的代码
+        if (!Languages.ContainsKey(code) && code.Length > 2)
+        {
+            var two = code[..2];
+            if (Languages.ContainsKey(two))
+                return two;
+        }
+
+        return code;
+    }
+
+    /// <summary>把当前语言写进 Application 资源（键名加 L. 前缀），XAML 用 DynamicResource 取。</summary>
+    private static void ApplyResources()
+    {
+        var app = Application.Current;
+        if (app is null)
+            return;
+
+        if (_resource is null)
+        {
+            _resource = new ResourceDictionary();
+            app.Resources.MergedDictionaries.Add(_resource);
+        }
+
+        _resource.Clear();
+        foreach (var (key, value) in _current)
+            _resource["L." + key] = value;
     }
 }

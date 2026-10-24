@@ -19,7 +19,11 @@ public static class CliBridge
 {
     private static string? _cached;
 
-    /// <summary>找 SubtitleStudio.Cli.exe：先看程序目录，再往上找构建输出。</summary>
+    /// <summary>
+    /// 找 SubtitleStudio.Cli.exe：先看程序目录（发布形态），再按 App 自身路径推导
+    /// 同配置/同目标框架的 CLI 构建输出（开发形态）。
+    /// 不在 bin 下盲目递归搜，避免捡到旧构建或别的架构的产物。
+    /// </summary>
     public static string? Locate()
     {
         if (_cached is not null)
@@ -31,16 +35,21 @@ public static class CliBridge
         if (File.Exists(direct))
             return _cached = direct;
 
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        for (var i = 0; dir is not null && i < 8; i++, dir = dir.Parent)
+        // App 输出目录形如 .../SubtitleStudio.App/bin/Debug/net10.0/，
+        // 往上三层拿到项目目录，CLI 的同配置产物就在旁边的 SubtitleStudio.Cli 下。
+        var tfm = new DirectoryInfo(AppContext.BaseDirectory);
+        var config = tfm.Parent;
+        var bin = config?.Parent;
+        var appProject = bin?.Parent;
+
+        if (appProject is not null
+            && appProject.Name.Equals("SubtitleStudio.App", StringComparison.OrdinalIgnoreCase)
+            && bin!.Name.Equals("bin", StringComparison.OrdinalIgnoreCase))
         {
-            var candidate = Path.Combine(dir.FullName, "SubtitleStudio.Cli", "bin");
-            if (Directory.Exists(candidate))
-            {
-                var hit = Directory.EnumerateFiles(candidate, exe, SearchOption.AllDirectories).FirstOrDefault();
-                if (hit is not null)
-                    return _cached = hit;
-            }
+            var candidate = Path.Combine(
+                appProject.Parent!.FullName, "SubtitleStudio.Cli", "bin", config!.Name, tfm.Name, exe);
+            if (File.Exists(candidate))
+                return _cached = candidate;
         }
 
         return null;
@@ -54,8 +63,7 @@ public static class CliBridge
         IProgress<AsrProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var cli = Locate() ?? throw new FileNotFoundException(
-            "找不到 SubtitleStudio.Cli.exe，无法在子进程里识别（可改用云端通道）");
+        var cli = Locate() ?? throw new FileNotFoundException(Loc.T("Error.CliMissing"));
 
         // 结果文件放在临时工作区里（%TEMP% 在受限环境下可能写不进去），和 wav 同一个目录
         var jsonPath = TempWorkspace.CreateFilePath(wavPath, ".json");
@@ -91,7 +99,7 @@ public static class CliBridge
             if (line.StartsWith("PROGRESS ", StringComparison.Ordinal) &&
                 double.TryParse(line["PROGRESS ".Length..], out var fraction))
             {
-                progress?.Report(new AsrProgress(Math.Clamp(fraction, 0, 1), $"识别中… {fraction * 100:0}%"));
+                progress?.Report(new AsrProgress(Math.Clamp(fraction, 0, 1), Loc.T("Busy.RecognizingPercent", fraction * 100)));
             }
         };
 
@@ -122,7 +130,7 @@ public static class CliBridge
             lock (errors)
                 tail = string.Join("\n", errors.TakeLast(6));
             throw new InvalidOperationException(
-                $"识别进程退出（code={process.ExitCode}）{Environment.NewLine}{tail}".TrimEnd());
+                $"{Loc.T("Error.CliExit", process.ExitCode)}{Environment.NewLine}{tail}".TrimEnd());
         }
 
         try
@@ -130,9 +138,9 @@ public static class CliBridge
             await using var stream = File.OpenRead(jsonPath);
             var payload = await JsonSerializer.DeserializeAsync<CliAsrResult>(stream, JsonOptions);
             if (payload is null)
-                throw new InvalidOperationException("识别结果为空");
+                throw new InvalidOperationException(Loc.T("Error.CliEmpty"));
 
-            progress?.Report(new AsrProgress(1, "识别完成"));
+            progress?.Report(new AsrProgress(1, Loc.T("Busy.RecognitionDone")));
             return payload;
         }
         finally

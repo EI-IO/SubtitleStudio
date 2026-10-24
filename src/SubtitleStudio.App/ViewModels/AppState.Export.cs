@@ -1,4 +1,4 @@
-using SubtitleStudio.App.Services;
+﻿using SubtitleStudio.App.Services;
 using SubtitleStudio.Core.Export;
 using SubtitleStudio.Core.Media;
 using SubtitleStudio.Core.Subtitles;
@@ -23,8 +23,8 @@ public sealed partial class AppState
         if (targets.Count == 0)
         {
             Status = Tracks.Count == 0
-                ? "还没有字幕可以导出"
-                : "没有勾选要导出的音轨（勾选的音轨也可能还没字幕）";
+                ? Loc.T("Export.NoCues")
+                : Loc.T("Export.NoTracks");
             return;
         }
 
@@ -32,7 +32,7 @@ public sealed partial class AppState
         if (dir is null)
             return;
 
-        var quality = Quality?.Value ?? OverlayQuality.Hd;
+        var quality = Quality.Value;
         var multi = Tracks.Count > 1;
         var fps = Media?.Fps ?? 30;
         var duration = Math.Max(0.5, Duration);
@@ -56,7 +56,9 @@ public sealed partial class AppState
                            "-overlay" + OverlayVideoExporter.ExtensionOf(format);
                 var output = Path.Combine(dir, name);
 
-                ExportText = multi ? $"{track.Info.Number}：准备导出…" : "准备导出…";
+                ExportText = multi
+                    ? Loc.T("Export.PreparingTrack", track.LabelShort)
+                    : Loc.T("Export.Preparing");
                 var index = i;
                 var progress = new Progress<ExportProgress>(p =>
                 {
@@ -65,7 +67,7 @@ public sealed partial class AppState
                     {
                         ExportProgress = (index + p.Fraction) / targets.Count;
                         if (!string.IsNullOrEmpty(p.Message))
-                            ExportText = multi ? $"{track.Info.Number}：{p.Message}" : p.Message;
+                            ExportText = multi ? $"{track.LabelShort}: {p.Message}" : p.Message;
                     }
                     catch
                     {
@@ -85,15 +87,15 @@ public sealed partial class AppState
             }
 
             ExportProgress = 1;
-            ExportText = "导出完成";
+            ExportText = Loc.T("Export.Done");
             Status = written.Count == 1
-                ? "已导出：" + Path.Combine(dir, written[0])
-                : $"已导出 {written.Count} 段：" + string.Join("、", written);
+                ? Loc.T("Export.SavedOne", Path.Combine(dir, written[0]))
+                : Loc.T("Export.SavedMany", written.Count, string.Join(", ", written));
         }
         catch (Exception ex)
         {
-            Status = "导出失败：" + ex.Message;
-            ReportError("导出失败：" + ex.Message);
+            Status = Loc.T("Export.Failed", ex.Message);
+            ReportError(Loc.T("Export.Failed", ex.Message));
             ExportText = string.Empty;
         }
         finally
@@ -107,7 +109,7 @@ public sealed partial class AppState
         var targets = ExportTargets();
         if (targets.Count == 0)
         {
-            Status = "还没有字幕可以导出";
+            Status = Loc.T("Export.NoCues");
             return;
         }
 
@@ -141,12 +143,12 @@ public sealed partial class AppState
             }
 
             Status = written.Count == 0
-                ? "没有字幕可写"
-                : "已导出：" + string.Join("、", written);
+                ? Loc.T("Export.NothingToWrite")
+                : Loc.T("Export.SavedOne", string.Join(", ", written));
         }
         catch (Exception ex)
         {
-            Status = "导出失败：" + CrashReporter.Flatten(ex);
+            Status = Loc.T("Export.Failed", CrashReporter.Flatten(ex));
             ReportError(Status);
         }
     }
@@ -168,8 +170,8 @@ public sealed partial class AppState
         try
         {
             track.AudioProgress = 0;
-            track.Status = "导出音频…";
-            Status = $"{track.Info.Number}：导出音频…";
+            track.Status = Loc.T("Track.ExportingAudio");
+            Status = Loc.T("Export.Audioing", track.LabelShort);
 
             var progress = new Progress<double>(p =>
             {
@@ -187,15 +189,15 @@ public sealed partial class AppState
                 Math.Max(0.5, Duration), progress);
 
             track.AudioProgress = -1;
-            track.Status = "音频已导出";
-            Status = $"{track.Info.Number} 音频已导出：" + output;
+            track.Status = Loc.T("Track.AudioExported");
+            Status = Loc.T("Export.AudioSaved", track.LabelShort, output);
         }
         catch (Exception ex)
         {
             track.AudioProgress = -1;
-            track.Status = "导出音频失败";
-            Status = $"{track.Info.Number} 导出音频失败：" + ex.Message;
-            ReportError($"{track.Info.Number} 导出音频失败：{ex.Message}");
+            track.Status = Loc.T("Track.AudioExportFailed");
+            Status = Loc.T("Export.AudioFailed", track.LabelShort, ex.Message);
+            ReportError(Loc.T("Export.AudioFailed", track.LabelShort, ex.Message));
         }
     }
 
@@ -261,13 +263,13 @@ public sealed partial class AppState
             if (string.IsNullOrWhiteSpace(candidate) || !CanWrite(candidate))
                 continue;
 
-            var message = $"导出目录不可写：{dir}\n原因：{cause.Explain}\n已自动改存到：{candidate}";
-            Status = $"已自动改存到 {candidate}";
+            var message = Loc.T("Export.DirNotWritable", dir, cause.Explain, candidate);
+            Status = Loc.T("Export.AutoMoved", candidate);
             ReportError(message, cause.IsPermission);
             return candidate;
         }
 
-        throw new IOException($"导出目录不可写：{dir}（{cause.Explain}），也没有找到可用的替代目录");
+        throw new IOException(Loc.T("Export.NoWritableDir", dir, cause.Explain));
     }
 
     private string? _lastWriteError;

@@ -118,9 +118,21 @@ public static class MediaProbe
         CancellationToken cancellationToken)
     {
         using var process = FfmpegTools.Start(exe, args, redirectStdout: true);
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        // stdout/stderr 不带取消令牌：进程被杀后管道关闭，读取自然结束
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            FfmpegTools.TryKill(process);
+            try { await stdoutTask.ConfigureAwait(false); } catch { /* 忽略 */ }
+            try { await stderrTask.ConfigureAwait(false); } catch { /* 忽略 */ }
+            throw;
+        }
+
         return (process.ExitCode, await stdoutTask.ConfigureAwait(false), await stderrTask.ConfigureAwait(false));
     }
 }

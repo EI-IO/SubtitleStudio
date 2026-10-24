@@ -31,18 +31,18 @@ public static class ModelCatalog
         "ggml-tiny.bin"
     };
 
-    /// <summary>推荐下载清单，界面上的「模型说明」用。</summary>
+    /// <summary>推荐下载清单，界面上的「模型说明」用。Note 是语言包缺键时的英文兜底。</summary>
     public static IReadOnlyList<ModelSuggestion> Suggestions { get; } = new[]
     {
-        new ModelSuggestion("ggml-tiny.bin", "tiny", "75 MB", "最快，只适合试流程；中文错字多"),
-        new ModelSuggestion("ggml-base.bin", "base", "142 MB", "轻量，英文可用，中文勉强"),
-        new ModelSuggestion("ggml-small.bin", "small", "466 MB", "速度与质量平衡，中文能用"),
-        new ModelSuggestion("ggml-medium.bin", "medium", "1.5 GB", "中文明显更好，6GB 显存可跑"),
-        new ModelSuggestion("ggml-large-v3-turbo.bin", "large-v3-turbo", "1.6 GB", "中文最好且比 large 快，首选"),
-        new ModelSuggestion("ggml-large-v3-turbo-q5_0.bin", "large-v3-turbo-q5_0", "574 MB", "turbo 的 5bit 量化，省内存"),
-        new ModelSuggestion("ggml-large-v3.bin", "large-v3", "3.1 GB", "最准但最慢，显存要 8GB+"),
-        new ModelSuggestion("ggml-medium-q5_0.bin", "medium-q5_0", "514 MB", "medium 的量化版，低配机器用"),
-        new ModelSuggestion("ggml-small-q5_1.bin", "small-q5_1", "190 MB", "small 的量化版")
+        new ModelSuggestion("ggml-tiny.bin", "tiny", "75 MB", "Smallest and fastest; only for trying the flow — many Chinese typos"),
+        new ModelSuggestion("ggml-base.bin", "base", "142 MB", "Lightweight; usable English, rough Chinese"),
+        new ModelSuggestion("ggml-small.bin", "small", "466 MB", "Balanced speed and quality; usable Chinese"),
+        new ModelSuggestion("ggml-medium.bin", "medium", "1.5 GB", "Clearly better Chinese; runs with 6 GB VRAM"),
+        new ModelSuggestion("ggml-large-v3-turbo.bin", "large-v3-turbo", "1.6 GB", "Best Chinese and faster than large — recommended"),
+        new ModelSuggestion("ggml-large-v3-turbo-q5_0.bin", "large-v3-turbo-q5_0", "574 MB", "5-bit quantized turbo; saves memory"),
+        new ModelSuggestion("ggml-large-v3.bin", "large-v3", "3.1 GB", "Most accurate but slowest; needs 8 GB+ VRAM"),
+        new ModelSuggestion("ggml-medium-q5_0.bin", "medium-q5_0", "514 MB", "Quantized medium; for low-spec machines"),
+        new ModelSuggestion("ggml-small-q5_1.bin", "small-q5_1", "190 MB", "Quantized small")
     };
 
     public static string DefaultModelDirectory

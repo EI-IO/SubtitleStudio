@@ -20,16 +20,16 @@ public partial class SubtitleListView : UserControl
         var state = vm.State;
         if (state.Cues.Count == 0)
         {
-            state.Status = "当前音轨没有字幕";
+            state.Status = Loc.T("SubtitleList.None");
             return;
         }
 
-        UiActions.SafeRun("清空字幕失败", async () =>
+        UiActions.SafeRun(Loc.T("Error.ClearCues"), async () =>
         {
             var ok = await Dialogs.ConfirmAsync(
                 Dialogs.OwnerOf(this),
                 Loc.T("Tracks.Clear.Title"),
-                Loc.T("Tracks.Clear.Message", state.SelectedTrack?.Info.Number ?? "当前音轨", state.Cues.Count),
+                Loc.T("Tracks.Clear.Message", state.SelectedTrack?.Info.Number ?? Loc.T("Label.CurrentTrack"), state.Cues.Count),
                 Loc.T("Tracks.Clear.Yes"),
                 Loc.T("Common.Cancel"));
 

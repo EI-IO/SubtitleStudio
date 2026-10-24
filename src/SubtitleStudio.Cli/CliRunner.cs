@@ -11,7 +11,8 @@ namespace SubtitleStudio.Cli;
 internal static class CliRunner
 {
     public static async Task<int> RunAsync(string[] args)
-    {        var args2 = Args.Parse(args);
+    {
+        var args2 = Args.Parse(args);
 
         if (args2.Has("help") || args is { Length: 0 })
         {
@@ -172,7 +173,8 @@ internal static class CliRunner
             return 3;
         }
 
-        var maxChars = int.TryParse(args2.Get("maxchars"), out var mc) ? mc : 18;        var formats = (args2.Get("format") ?? "srt,ass,vtt").Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var maxChars = int.TryParse(args2.Get("maxchars"), out var mc) ? mc : 18;
+        var formats = (args2.Get("format") ?? "srt,ass,vtt").Split(',', StringSplitOptions.RemoveEmptyEntries);
         var style = CueStyle.Default;
 
         string Suffix(AudioStreamInfo t) => allTracks.Count > 1 ? $"-t{t.Ordinal}" : string.Empty;

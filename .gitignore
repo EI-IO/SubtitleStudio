@@ -1,0 +1,29 @@
+# 构建产物
+bin/
+obj/
+dist/
+.tmp/
+
+# 运行时资源（体积大，不入库）
+models/*.bin
+models/*.onnx
+tools/ffmpeg/
+
+# 运行期配置（settings.json 里有明文 API Key，绝不能入库）
+config/
+
+# 测试素材与临时目录
+test/*.mp4
+test/*.mkv
+test/*.wav
+test/.subtitle-studio-tmp/
+*.log
+
+# 编辑器 / 系统
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+Thumbs.db
+desktop.ini

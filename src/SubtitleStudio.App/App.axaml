@@ -10,7 +10,7 @@
 
   <Application.Styles>
     <FluentTheme />
-    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+    <!-- 调色板是自绘的，没用到 ColorPicker 控件，它的样式与包都不再引入 -->
     <StyleInclude Source="avares://Dock.Avalonia.Themes.Fluent/DockFluentTheme.axaml" />
   </Application.Styles>
 

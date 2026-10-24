@@ -10,16 +10,23 @@ public sealed partial class AppState
     private readonly AudioPlayback _playback = new();
     private DispatcherTimer? _playTimer;
 
+    /// <summary>解码任务的取消源：换文件 / 停止 / 重新播放时中断上一次解码。</summary>
+    private CancellationTokenSource? _prepareCts;
+
+    /// <summary>超过这个时长只解开头一段做预览播放，避免临时 wav 占用几个 GB。</summary>
+    private const double MaxPreviewDecodeSeconds = 30 * 60;
+
     [ObservableProperty] private bool _isPlaying;
 
     /// <summary>播放按钮上的字。</summary>
-    [ObservableProperty] private string _playText = "播放";
+    [ObservableProperty] private string _playText = Loc.T("Play.Play");
 
-    /// <summary>切歌/换文件时把声音停掉。</summary>
+    /// <summary>切歌/换文件时把声音停掉，并中断可能还在跑的解码。</summary>
     public void StopPlayback()
     {
         try
         {
+            _prepareCts?.Cancel();
             _playback.Stop();
         }
         catch
@@ -29,7 +36,7 @@ public sealed partial class AppState
 
         _playTimer?.Stop();
         IsPlaying = false;
-        PlayText = "播放";
+        PlayText = Loc.T("Play.Play");
     }
 
     /// <summary>释放解码出来的临时文件（换文件、退出时）。</summary>
@@ -50,8 +57,8 @@ public sealed partial class AppState
             {
                 _playback.Pause();
                 IsPlaying = false;
-                PlayText = "播放";
-                Status = "已暂停";
+                PlayText = Loc.T("Play.Play");
+                Status = Loc.T("Status.Paused");
                 return;
             }
 
@@ -60,28 +67,55 @@ public sealed partial class AppState
                 var indexes = Tracks.Where(t => t.ExportEnabled).Select(t => t.Info.Index).ToList();
                 if (indexes.Count == 0)
                 {
-                    Status = "没有勾选任何音轨，勾上一条再播放";
+                    Status = Loc.T("Status.NoTrackForPlayback");
                     return;
                 }
 
-                BusyText = "解码音频…";
-                Status = "解码音频…";
-                await _playback.PrepareAsync(Media.Path, indexes, CancellationToken.None);
+                BusyText = Loc.T("Busy.Decoding");
+                Status = Loc.T("Busy.Decoding");
+
+                // 换一个取消源：上一次播放/换文件遗留的解码直接打断
+                _prepareCts?.Cancel();
+                _prepareCts?.Dispose();
+                _prepareCts = new CancellationTokenSource();
+
+                // 超长媒体只解前 30 分钟，临时 wav 不至于吃掉几个 GB
+                var capped = Duration > MaxPreviewDecodeSeconds;
+                await _playback.PrepareAsync(Media.Path, indexes, _prepareCts.Token,
+                    capped ? MaxPreviewDecodeSeconds : null);
                 BusyText = string.Empty;
 
-                if (CurrentTime > 0)
+                if (CurrentTime > 0 && CurrentTime < _playback.Duration)
                     _playback.Position = CurrentTime;
+
+                _playback.Play();
+                IsPlaying = true;
+                PlayText = Loc.T("Play.Pause");
+                Status = capped
+                    ? Loc.T("Status.PlayingCapped", Loc.T("Status.Playing"), MaxPreviewDecodeSeconds / 60)
+                    : Loc.T("Status.Playing");
+                StartPlaybackTimer();
+                return;
             }
+
+            // 暂停中拖过红线的话，从红线处接着放（没拖过时两者本来就相等，同步无副作用）
+            if (Math.Abs(_playback.Position - CurrentTime) > 0.05 && CurrentTime < _playback.Duration)
+                _playback.Position = CurrentTime;
 
             _playback.Play();
             IsPlaying = true;
-            PlayText = "暂停";
-            Status = "播放中（只放勾选的音轨）";
+            PlayText = Loc.T("Play.Pause");
+            Status = Loc.T("Status.Playing");
             StartPlaybackTimer();
+        }
+        catch (OperationCanceledException)
+        {
+            // 解码被换文件/停止打断，不算错误
+            BusyText = string.Empty;
         }
         catch (Exception ex)
         {
-            ReportError("播放失败：" + ex.Message);
+            ReportError(Loc.T("Status.PlayFailed", ex.Message));
             StopPlayback();
         }
     }
@@ -100,10 +134,10 @@ public sealed partial class AppState
         {
             _playTimer?.Stop();
             IsPlaying = false;
-            PlayText = "播放";
+            PlayText = Loc.T("Play.Play");
 
             if (_playback.IsReady && _playback.Position >= _playback.Duration - 0.1)
-                Status = "播放结束";
+                Status = Loc.T("Status.PlayEnded");
             return;
         }
 

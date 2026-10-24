@@ -1,71 +1,114 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="SubtitleStudio.App.Views.SettingsWindow"
-        Title="设置"
-        Width="720" Height="620"
-        MinWidth="640" MinHeight="520"
+        Title="{DynamicResource L.Settings.Title}"
+        Width="760" Height="640"
+        MinWidth="680" MinHeight="540"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="*,Auto" Margin="16">
-    <TabControl Grid.Row="0">
-      <TabItem Header="硅基流动">
-        <StackPanel Spacing="10" Margin="4,12,4,4">
-          <TextBlock Text="OpenAI 兼容接口，识别走 /audio/transcriptions。" Opacity="0.65" />
-          <TextBlock Text="接口地址" FontSize="12" Opacity="0.7" />
-          <TextBox x:Name="SiliconBaseUrl" IsReadOnly="True" />
 
-          <TextBlock Text="API Key" FontSize="12" Opacity="0.7" />
-          <TextBox x:Name="SiliconKey" PasswordChar="•" Watermark="sk-..." />
+    <!-- 左：提供商列表（仿账号列表：名称 + 状态点 + 编辑/删除）；右：点「编辑」后对应的表单 -->
+    <Grid Grid.Row="0" ColumnDefinitions="248,12,*">
 
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button x:Name="FetchSiliconButton" Content="获取模型列表" Click="OnFetchSilicon" />
-            <TextBlock x:Name="SiliconStatus" VerticalAlignment="Center" Opacity="0.7" Text="填好 Key 后点左边按钮" />
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer Grid.Row="0">
+          <StackPanel x:Name="ProviderList" Spacing="8" />
+        </ScrollViewer>
+        <Button Grid.Row="1" x:Name="AddProviderButton" Content="{DynamicResource L.Settings.AddProvider}" Click="OnAddProvider"
+                Margin="0,10,0,0" Padding="10,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      </Grid>
+
+      <Border Grid.Column="2" x:Name="DetailHost" Padding="14,10"
+              BorderBrush="#2A2A31" BorderThickness="1" CornerRadius="8">
+
+        <Grid>
+          <TextBlock x:Name="DetailHint" Text="{DynamicResource L.Settings.DetailHint}"
+                     Opacity="0.55" TextWrapping="Wrap" VerticalAlignment="Top" />
+
+          <!-- 本地模型：模型下载列表 -->
+          <Grid x:Name="LocalPanel" RowDefinitions="Auto,*,Auto" IsVisible="False">
+            <StackPanel Grid.Row="0" Spacing="4">
+              <TextBlock Text="{DynamicResource L.Settings.Local.Desc}"
+                         Opacity="0.65" TextWrapping="Wrap" FontWeight="SemiBold" />
+              <TextBlock x:Name="ModelDirText" FontSize="12" Opacity="0.55" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" Margin="0,8,0,8">
+              <StackPanel x:Name="ModelList" Spacing="6" />
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2" Spacing="6">
+              <ProgressBar x:Name="DownloadBar" Height="6" Minimum="0" Maximum="1" />
+              <TextBlock x:Name="DownloadStatus" FontSize="12" Opacity="0.7" />
+            </StackPanel>
+          </Grid>
+
+          <!-- 硅基流动 -->
+          <StackPanel x:Name="SiliconPanel" Spacing="10" IsVisible="False">
+            <TextBlock Text="{DynamicResource L.Settings.Silicon.Desc}"
+                       Opacity="0.65" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource L.Settings.BaseUrl}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="SiliconBaseUrl" IsReadOnly="True" />
+
+            <TextBlock Text="{DynamicResource L.Settings.ApiKey}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="SiliconKey" PasswordChar="•" Watermark="sk-..." />
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button x:Name="FetchSiliconButton" Content="{DynamicResource L.Settings.ConnectTest}" Click="OnFetchSilicon" />
+              <TextBlock x:Name="SiliconStatus" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" />
+            </StackPanel>
           </StackPanel>
 
-          <TextBlock Text="识别模型" FontSize="12" Opacity="0.7" />
-          <ComboBox x:Name="SiliconModel" HorizontalAlignment="Stretch" />
-        </StackPanel>
-      </TabItem>
+          <!-- 天翼星辰 -->
+          <StackPanel x:Name="TeleAiPanel" Spacing="10" IsVisible="False">
+            <TextBlock Text="{DynamicResource L.Settings.TeleAi.Desc}"
+                       Opacity="0.65" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource L.Settings.Endpoint}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="TeleAiUrl" IsReadOnly="True" />
 
-      <TabItem Header="天翼星辰">
-        <StackPanel Spacing="10" Margin="4,12,4,4">
-          <TextBlock Text="短语音识别（HTTPS，只能识别 1 分钟以内的语音；更长的音频程序会自动切片）。只用 API Key，不需要 AppID / AppKey。" Opacity="0.65" TextWrapping="Wrap" />
-          <TextBlock Text="接入点" FontSize="12" Opacity="0.7" />
-          <TextBox x:Name="TeleAiUrl" IsReadOnly="True" />
+            <StackPanel Spacing="6">
+              <TextBlock Text="{DynamicResource L.Settings.ApiKey}" FontSize="12" Opacity="0.7" />
+              <TextBox x:Name="TeleAiApiKey" PasswordChar="•" Watermark="sk-..." />
+            </StackPanel>
 
-          <StackPanel Spacing="6">
-            <TextBlock Text="API Key（sk- 开头）" FontSize="12" Opacity="0.7" />
-            <TextBox x:Name="TeleAiApiKey" PasswordChar="•" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button x:Name="TestTeleAiButton" Content="{DynamicResource L.Settings.TestConnection}" Click="OnTestTeleAi" />
+              <TextBlock x:Name="TeleAiStatus" VerticalAlignment="Center" Opacity="0.7" />
+            </StackPanel>
           </StackPanel>
 
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button x:Name="TestTeleAiButton" Content="测试连接" Click="OnTestTeleAi" />
-            <TextBlock x:Name="TeleAiStatus" VerticalAlignment="Center" Opacity="0.7" Text="填好 Key 后点这里发一段静音试一下" />
-          </StackPanel>
-        </StackPanel>
-      </TabItem>
+          <!-- 自定义 OpenAI 兼容提供商 -->
+          <StackPanel x:Name="CustomPanel" Spacing="10" IsVisible="False">
+            <TextBlock Text="{DynamicResource L.Settings.Custom.Desc}"
+                       Opacity="0.65" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource L.Settings.Custom.Name}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="CustomName" Watermark="{DynamicResource L.Settings.Custom.NameWatermark}" />
 
-      <TabItem Header="本地模型">
-        <Grid RowDefinitions="Auto,*,Auto" Margin="4,12,4,4">
-          <StackPanel Grid.Row="0" Spacing="4">
-            <TextBlock Text="模型放在 models 目录，缺哪个下哪个。支持多镜像，失败自动换源。" Opacity="0.65" TextWrapping="Wrap" />
-            <TextBlock x:Name="ModelDirText" FontSize="12" Opacity="0.55" TextWrapping="Wrap" />
-          </StackPanel>
+            <TextBlock Text="{DynamicResource L.Settings.Custom.BaseUrl}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="CustomBaseUrl" Watermark="https://example.com/v1" />
 
-          <ScrollViewer Grid.Row="1" Margin="0,8,0,8">
-            <StackPanel x:Name="ModelList" Spacing="6" />
-          </ScrollViewer>
+            <TextBlock Text="{DynamicResource L.Settings.ApiKey}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="CustomKey" PasswordChar="•" Watermark="sk-..." />
 
-          <StackPanel Grid.Row="2" Spacing="6">
-            <ProgressBar x:Name="DownloadBar" Height="6" Minimum="0" Maximum="1" />
-            <TextBlock x:Name="DownloadStatus" FontSize="12" Opacity="0.7" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button x:Name="FetchCustomButton" Content="{DynamicResource L.Settings.ConnectTest}" Click="OnFetchCustom" />
+              <TextBlock x:Name="CustomStatus" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="{DynamicResource L.Settings.Custom.Model}" FontSize="12" Opacity="0.7" />
+            <TextBox x:Name="CustomModelText" Watermark="{DynamicResource L.Settings.Custom.ModelWatermark}" />
           </StackPanel>
         </Grid>
-      </TabItem>
-    </TabControl>
+      </Border>
+    </Grid>
 
-    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
-      <Button Content="取消" Click="OnCancel" MinWidth="90" />
-      <Button Content="保存" Click="OnSave" MinWidth="90" Classes="accent" />
-    </StackPanel>
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="0,14,0,0">
+      <CheckBox x:Name="DenoiseCheck" Content="{DynamicResource L.Settings.Denoise}" VerticalAlignment="Center"
+                FontSize="12" Opacity="0.85" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <TextBlock Text="{DynamicResource L.Settings.AutoSave}" Opacity="0.5" FontSize="12" VerticalAlignment="Center" />
+        <Button Content="{DynamicResource L.Settings.Done}" Click="OnClose" MinWidth="90" Classes="accent" />
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>

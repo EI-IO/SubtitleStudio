@@ -11,11 +11,11 @@ public partial class MainWindow
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "选择视频或音频文件",
+            Title = Services.Loc.T("Dialog.SelectMedia"),
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("媒体文件")
+                new FilePickerFileType(Services.Loc.T("Dialog.MediaFiles"))
                 {
                     Patterns = new[]
                     {
@@ -35,7 +35,7 @@ public partial class MainWindow
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择导出位置",
+            Title = Services.Loc.T("Dialog.SelectExportDir"),
             AllowMultiple = false
         });
 
