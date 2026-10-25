@@ -8,6 +8,7 @@ using SubtitleStudio.App.ViewModels;
 
 namespace SubtitleStudio.App.Views;
 
+/// <summary>样式条：自绘调色板与字体文件选择，改动直接写回 <see cref="StyleViewModel"/> 并实时预览。</summary>
 public partial class StyleView : UserControl
 {
     public StyleView()

@@ -17,10 +17,12 @@
     <Style Selector="Button#PART_MenuButton">
       <Setter Property="IsVisible" Value="False" />
       <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Focusable" Value="False" />
     </Style>
     <Style Selector="Button#PART_PinButton">
       <Setter Property="IsVisible" Value="False" />
       <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Focusable" Value="False" />
     </Style>
   </Application.Styles>
 

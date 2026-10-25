@@ -95,64 +95,94 @@ public sealed partial class TimelineControl
 
         // 点哪条音轨就切到哪条：左侧列表和预览跟着换
         var row = RowFromY(pos.Y);
-        if (row >= 0 && row < state.Tracks.Count)
-            state.SelectTrack(state.Tracks[row]);
-
-
-        // 勾选框 / 右侧音频导出按钮优先响应（这两个是自绘的，命中矩形在上次 Render 里记下来）
-        if (row >= 0 && row < state.Tracks.Count
-            && _hitRects.TryGetValue(state.Tracks[row], out var rects))
+        if (row < 0 || row >= state.Tracks.Count)
         {
-            if (rects.Check.Contains(pos))
-            {
-                state.Tracks[row].ExportEnabled = !state.Tracks[row].ExportEnabled;
-                // 勾选决定播放/导出包含哪些音轨；已经解码好的混音作废，下次播放重新混
-                state.InvalidatePlaybackMix();
-                InvalidateVisual();
-                e.Handled = true;
-                return;
-            }
-
-            if (rects.Export.Contains(pos))
-            {
-                _ = ExportAudioAsync(state, state.Tracks[row]);
-                e.Handled = true;
-                return;
-            }
-
-            if (rects.Delete.Contains(pos))
-            {
-                _ = DeleteTrackAsync(state, state.Tracks[row]);
-                e.Handled = true;
-                return;
-            }
-        }
-
-        if (row >= 0 && InCueStrip(pos.Y) && HitTestCue(state, pos.X, out var nearLeft, out var nearRight) is { } cue)
-        {
-            state.SelectedCue = cue;
-            _dragCue = cue;
-            _cueStart0 = cue.Start;
-            _cueEnd0 = cue.End;
-
-            // 相邻字幕的边界：拖过去会重叠，所以在这里就把活动范围夹死
-            _cueMinStart = state.Cues
-                .Where(c => !ReferenceEquals(c, cue) && c.Start < cue.Start)
-                .Select(c => c.End)
-                .DefaultIfEmpty(0)
-                .Max();
-            _cueMaxEnd = state.Cues
-                .Where(c => !ReferenceEquals(c, cue) && c.Start > cue.Start)
-                .Select(c => (double?)c.Start)
-                .Min() ?? double.MaxValue;
-
-            _mode = nearRight ? DragMode.ResizeEnd : nearLeft ? DragMode.ResizeStart : DragMode.MoveCue;
-            e.Pointer.Capture(this);
-            e.Handled = true;
-            InvalidateVisual();
+            BeginSeek(state, pos, e);
             return;
         }
 
+        state.SelectTrack(state.Tracks[row]);
+
+        // 自绘按钮（勾选 / 导出 / 删除）优先于字幕块和跳转
+        if (TryHandleTrackButton(state, row, pos))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (InCueStrip(pos.Y) && TryBeginCueDrag(state, pos, e))
+            return;
+
+        BeginSeek(state, pos, e);
+    }
+
+    /// <summary>点中轨道行右侧的自绘按钮：勾选框、导出该轨音频、删除整条音轨。</summary>
+    private bool TryHandleTrackButton(AppState state, int row, Point pos)
+    {
+        var track = state.Tracks[row];
+        if (!_hitRects.TryGetValue(track, out var rects))
+            return false;
+
+        if (rects.Check.Contains(pos))
+        {
+            track.ExportEnabled = !track.ExportEnabled;
+            // 勾选决定播放/导出包含哪些音轨；已经解码好的混音作废，下次播放重新混
+            state.InvalidatePlaybackMix();
+            InvalidateVisual();
+            return true;
+        }
+
+        if (rects.Export.Contains(pos))
+        {
+            _ = ExportAudioAsync(state, track);
+            return true;
+        }
+
+        if (rects.Delete.Contains(pos))
+        {
+            _ = DeleteTrackAsync(state, track);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>按在字幕块上：中间拖动整块，左右边缘拉伸；活动范围在按下时一次算好。</summary>
+    private bool TryBeginCueDrag(AppState state, Point pos, PointerPressedEventArgs e)
+    {
+        if (HitTestCue(state, pos.X, out var nearLeft, out var nearRight) is not { } cue)
+            return false;
+
+        state.SelectedCue = cue;
+        _dragCue = cue;
+        _cueStart0 = cue.Start;
+        _cueEnd0 = cue.End;
+        ClampCueDragRange(state, cue);
+
+        _mode = nearRight ? DragMode.ResizeEnd : nearLeft ? DragMode.ResizeStart : DragMode.MoveCue;
+        e.Pointer.Capture(this);
+        e.Handled = true;
+        InvalidateVisual();
+        return true;
+    }
+
+    /// <summary>相邻字幕的边界：拖过去会重叠，所以在这里就把活动范围夹死。</summary>
+    private void ClampCueDragRange(AppState state, CueItem cue)
+    {
+        _cueMinStart = state.Cues
+            .Where(c => !ReferenceEquals(c, cue) && c.Start < cue.Start)
+            .Select(c => c.End)
+            .DefaultIfEmpty(0)
+            .Max();
+        _cueMaxEnd = state.Cues
+            .Where(c => !ReferenceEquals(c, cue) && c.Start > cue.Start)
+            .Select(c => (double?)c.Start)
+            .Min() ?? double.MaxValue;
+    }
+
+    /// <summary>空白处按下 / 拖动 = 移动播放头。</summary>
+    private void BeginSeek(AppState state, Point pos, PointerPressedEventArgs e)
+    {
         _mode = DragMode.Seek;
         state.SeekTo(XToTime(pos.X));
         e.Pointer.Capture(this);

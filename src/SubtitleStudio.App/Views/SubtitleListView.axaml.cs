@@ -5,6 +5,7 @@ using SubtitleStudio.App.ViewModels;
 
 namespace SubtitleStudio.App.Views;
 
+/// <summary>字幕列表面板：改字由双向绑定完成，这里只处理「清空」的确认流程。</summary>
 public partial class SubtitleListView : UserControl
 {
     public SubtitleListView()

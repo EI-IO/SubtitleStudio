@@ -74,10 +74,25 @@ public sealed class AudioPlayback : IDisposable
             if (code != 0 || !File.Exists(temp))
                 throw new InvalidOperationException(Loc.T("Error.OpenAudio", ProcessText.Tail(stderr)));
 
+            // 先建好临时对象，全部成功后再挂到字段上：否则 Init 失败会留下
+            // 「IsReady 为真但播放设备没初始化」的半成品状态
+            var reader = new AudioFileReader(temp);
+            WaveOutEvent? output = null;
+            try
+            {
+                output = new WaveOutEvent { DesiredLatency = 120 };
+                output.Init(reader);
+            }
+            catch
+            {
+                output?.Dispose();
+                reader.Dispose();
+                throw;
+            }
+
             _tempWav = temp;
-            _reader = new AudioFileReader(temp);
-            _output = new WaveOutEvent { DesiredLatency = 120 };
-            _output.Init(_reader);
+            _reader = reader;
+            _output = output;
             adopted = true;
         }
         finally

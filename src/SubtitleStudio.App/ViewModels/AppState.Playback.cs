@@ -53,11 +53,12 @@ public sealed partial class AppState
         if (!_playback.IsReady && !IsPlaying && _prepareCts is null)
             return;
 
-        var wasPlaying = IsPlaying;
+        var wasActive = IsPlaying || _prepareCts is not null;
         StopPlayback();
         _playback.ReleasePrepared();
 
-        if (wasPlaying)
+        // 只有真的打断了播放/解码才提示；暂停时丢掉缓存不用打扰用户
+        if (wasActive)
             Status = Loc.T("Status.PlaySelectionChanged");
     }
 
@@ -65,6 +66,8 @@ public sealed partial class AppState
     {
         if (Media is null)
             return;
+
+        CancellationTokenSource? prepareCts = null;
 
         try
         {
@@ -92,12 +95,33 @@ public sealed partial class AppState
                 // 换一个取消源：上一次播放/换文件遗留的解码直接打断
                 _prepareCts?.Cancel();
                 _prepareCts?.Dispose();
-                _prepareCts = new CancellationTokenSource();
+                prepareCts = new CancellationTokenSource();
+                _prepareCts = prepareCts;
 
                 // 超长媒体只解前 30 分钟，临时 wav 不至于吃掉几个 GB
                 var capped = Duration > MaxPreviewDecodeSeconds;
-                await _playback.PrepareAsync(Media.Path, indexes, _prepareCts.Token,
-                    capped ? MaxPreviewDecodeSeconds : null);
+                try
+                {
+                    await _playback.PrepareAsync(Media.Path, indexes, prepareCts.Token,
+                        capped ? MaxPreviewDecodeSeconds : null);
+
+                    // 取消可能刚好发生在 ffmpeg 收尾之后：这份混音是按旧勾选解的，不能拿来播
+                    if (prepareCts.IsCancellationRequested)
+                    {
+                        _playback.ReleasePrepared();
+                        if (ReferenceEquals(_prepareCts, prepareCts))
+                            BusyText = string.Empty;
+                        return;
+                    }
+                }
+                finally
+                {
+                    // 只有自己还是当前任务才清空，别把后一次解码的取消源顶掉
+                    if (ReferenceEquals(_prepareCts, prepareCts))
+                        _prepareCts = null;
+                    prepareCts.Dispose();
+                }
+
                 BusyText = string.Empty;
 
                 if (CurrentTime > 0 && CurrentTime < _playback.Duration)
@@ -125,8 +149,9 @@ public sealed partial class AppState
         }
         catch (OperationCanceledException)
         {
-            // 解码被换文件/停止打断，不算错误
-            BusyText = string.Empty;
+            // 解码被换文件/停止打断，不算错误；被后一次解码顶替时别清掉它的提示
+            if (_prepareCts is null || ReferenceEquals(_prepareCts, prepareCts))
+                BusyText = string.Empty;
         }
         catch (Exception ex)
         {

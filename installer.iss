@@ -1,6 +1,8 @@
 ﻿; Subtitle Studio 安装程序（Inno Setup 6.5+）
-; 用法：先运行 .\publish.ps1 生成 dist\SubtitleStudio，再运行 .\installer.ps1
+; 用法：先运行 .\publish.ps1 生成发布目录，再运行 .\installer.ps1 [-Mode slim]
 ; 也可直接：iscc.exe /DAppVersion=1.1.0 installer.iss
+;
+; 完整版与 slim 版共用同一个 AppId（升级/卸载识别码），因此两者可以互相覆盖升级。
 
 #ifndef AppVersion
   #define AppVersion "1.1.0"
@@ -8,6 +10,10 @@
 
 #ifndef SourceDir
   #define SourceDir "dist\SubtitleStudio"
+#endif
+
+#ifndef OutputBase
+  #define OutputBase "SubtitleStudio-Setup-" + AppVersion
 #endif
 
 #define AppName "Subtitle Studio"
@@ -21,7 +27,12 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
+; slim 不带 .NET 运行时和 ffmpeg，安装说明里要写清楚额外依赖
+#ifdef IsSlim
+AppComments=Extract audio from video, create editable subtitles, and export alpha overlay videos or subtitle files. Requires .NET 10 Desktop Runtime; ffmpeg is downloaded on first launch.
+#else
 AppComments=Extract audio from video, create editable subtitles, and export alpha overlay videos or subtitle files
+#endif
 VersionInfoVersion={#AppVersion}
 VersionInfoProductName={#AppName}
 VersionInfoCompany={#AppPublisher}
@@ -33,7 +44,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=dist
-OutputBaseFilename=SubtitleStudio-Setup-{#AppVersion}
+OutputBaseFilename={#OutputBase}
 SetupIconFile=src\SubtitleStudio.App\Assets\icon.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 Compression=lzma2/max

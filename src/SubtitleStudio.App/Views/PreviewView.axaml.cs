@@ -6,6 +6,7 @@ using SubtitleStudio.Core.Export;
 
 namespace SubtitleStudio.App.Views;
 
+/// <summary>预览面板视图：主按钮走默认 WebM 透明导出，下拉菜单按标签分发其余格式。</summary>
 public partial class PreviewView : UserControl
 {
     public PreviewView()

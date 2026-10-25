@@ -8,6 +8,7 @@ using SubtitleStudio.Core.Asr;
 
 namespace SubtitleStudio.App;
 
+/// <summary>应用启动装配：装载主题、接管未捕获异常、准备字体与语言，再创建主窗口。</summary>
 public partial class App : Application
 {
     public override void Initialize()

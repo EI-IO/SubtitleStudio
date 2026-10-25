@@ -86,8 +86,9 @@ public partial class MainWindow : Window
         DockChrome.StartCleanup(this);
         state.Initialize();
 
-        // slim 版不带 ffmpeg：启动就先提醒，避免用户拖进视频后才看到一句报错
-        if (!await FfmpegSetup.PromptAsync(this))
+        // slim 版不带 ffmpeg：启动就先提醒，避免用户拖进视频后才看到一句报错。
+        // 带启动文件时由 LoadMediaAsync 负责提示，免得连着弹两次
+        if (string.IsNullOrWhiteSpace(StartupFile) && !await FfmpegSetup.PromptAsync(this))
             state.Status = Loc.T("Status.FfmpegMissing");
 
         if (!string.IsNullOrWhiteSpace(StartupFile))
@@ -215,11 +216,13 @@ public partial class MainWindow : Window
             Height = maxHeight;
     }
 
+    /// <summary>只接受文件拖入，路径与扩展名交给媒体加载流程判断。</summary>
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
+    /// <summary>拖入媒体后直接加载并抽音轨；识别仍要用户手动开始。</summary>
     private void OnDrop(object? sender, DragEventArgs e)
     {
         var path = e.DataTransfer.TryGetFiles()?.FirstOrDefault()?.TryGetLocalPath();

@@ -27,6 +27,7 @@ public sealed partial class TimelineControl
     private static readonly IPen RowPen = new Pen(new SolidColorBrush(Color.Parse("#2B2B33")), 1);
     private static readonly IPen PlayheadPen = new Pen(new SolidColorBrush(Color.Parse("#FF5A5A")), 1.5);
     private static readonly IPen CueBorderPen = new Pen(new SolidColorBrush(Color.Parse("#8FB4FF")), 1);
+    private static readonly IPen CueHandlePen = new Pen(new SolidColorBrush(Color.Parse("#5A3A08")), 1.4);
     private static readonly Typeface Face = new("Microsoft YaHei");
 
     /// <summary>刻度标签之间至少留这么多像素，太挤就换更大的步长。</summary>
@@ -339,11 +340,10 @@ public sealed partial class TimelineControl
             // 选中的块在左右边缘画两条短竖线，提示这里可以拖动改时间
             if (selected && width > 16)
             {
-                var handlePen = new Pen(new SolidColorBrush(Color.Parse("#5A3A08")), 1.4);
                 if (x0 >= 0 && x0 <= lane.Width)
-                    context.DrawLine(handlePen, new Point(x0 + 3, rect.Y + 4), new Point(x0 + 3, rect.Bottom - 4));
+                    context.DrawLine(CueHandlePen, new Point(x0 + 3, rect.Y + 4), new Point(x0 + 3, rect.Bottom - 4));
                 if (x1 >= 0 && x1 <= lane.Width)
-                    context.DrawLine(handlePen, new Point(x1 - 3, rect.Y + 4), new Point(x1 - 3, rect.Bottom - 4));
+                    context.DrawLine(CueHandlePen, new Point(x1 - 3, rect.Y + 4), new Point(x1 - 3, rect.Bottom - 4));
             }
 
             if (width > 24)

@@ -19,17 +19,9 @@ internal static class DockChrome
         HideUnwantedButtons(root);
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        timer.Tick += (_, _) =>
-        {
-            // 窗口关掉后不再持有它
-            if (root.GetVisualRoot() is null)
-            {
-                timer.Stop();
-                return;
-            }
-
-            HideUnwantedButtons(root);
-        };
+        timer.Tick += (_, _) => HideUnwantedButtons(root);
+        // 窗口关掉就停：DispatcherTimer 会一直持有回调里的引用，不停就不会释放
+        root.Closed += (_, _) => timer.Stop();
         timer.Start();
     }
 

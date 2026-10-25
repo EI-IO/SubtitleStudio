@@ -1,3 +1,4 @@
+// 命令行入口：只做退出码与顶层异常兜底，具体子命令在 CliRunner。
 using SubtitleStudio.Core.Asr;
 using SubtitleStudio.Cli;
 

@@ -10,6 +10,7 @@ using SubtitleStudio.Core.Asr;
 
 namespace SubtitleStudio.App.Views;
 
+/// <summary>时间轴面板：打开文件、开始/停止识别、播放、缩放，以及拼装模型菜单。</summary>
 public partial class TimelineView : UserControl
 {
     public TimelineView()
