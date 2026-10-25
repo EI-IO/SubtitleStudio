@@ -14,8 +14,12 @@ The Releases page provides three packages:
 | Package | Purpose |
 |---|---|
 | `SubtitleStudio-Setup-x.y.z.exe` | Installer: bundles ffmpeg and the tiny model. Installs per-user by default (no UAC prompt). |
-| `SubtitleStudio-full.zip` | Portable full build: unzip and run `SubtitleStudio.exe`. No .NET installation required. |
-| `SubtitleStudio-slim.zip` | Slim build: requires the .NET 10 Desktop Runtime, about 75 MB smaller than the full build. |
+| `SubtitleStudio-full.zip` | Portable full build: includes ffmpeg. Unzip and run `SubtitleStudio.exe`. No .NET installation required. |
+| `SubtitleStudio-slim.zip` | Slim build: requires the .NET 10 Desktop Runtime and does **not** include ffmpeg. |
+
+> **Slim build and ffmpeg:** ffmpeg is not bundled. On first launch (and whenever you try to open a video without it)
+> the app shows a dialog with the official download page and a GitHub mirror. Put `ffmpeg.exe` and `ffprobe.exe`
+> into `tools\ffmpeg\bin` next to the app (or add ffmpeg to `PATH`), then click “Recheck”.
 
 The installer creates a Start menu shortcut (desktop icon optional) and can be removed from Settings → Apps.
 User settings and imported fonts live in `%LOCALAPPDATA%\SubtitleStudio` and are kept after uninstalling.
@@ -172,7 +176,7 @@ It covers: Start recognition (the button becomes “Re-recognize”), play/pause
 ## Internationalization (i18n)
 
 All UI text goes through `Loc.T("key")`; XAML uses `{DynamicResource L.Key}`. Switching languages refreshes the whole UI immediately without a restart.
-To the right of the file name in the bottom bar are “Reset layout” and the language dropdown: Simplified Chinese / English, plus “More languages…”, which reopens the tile-based selection window.
+To the right of the file name in the bottom bar are the language dropdown and “Reset layout”: Simplified Chinese / English, plus “More languages…”, which reopens the tile-based selection window.
 On first run (no language saved yet and `SUBTITLESTUDIO_LANG` unset) the tile picker appears first; after a choice it no longer interrupts.
 
 Language pack format (`src/SubtitleStudio.App/Assets/lang/*.json`):
@@ -222,7 +226,7 @@ The same clip (track 4 of `test/test.mp4`, 10 seconds of Chinese) was recognized
 
 ```powershell
 .\publish.ps1                  # full: self-contained, no .NET needed on the target machine (default)
-.\publish.ps1 -Mode slim       # slim: framework-dependent, requires .NET 10 Desktop Runtime
+.\publish.ps1 -Mode slim       # slim: framework-dependent, requires .NET 10 Desktop Runtime; ffmpeg is not copied
 .\publish.ps1 -Zip             # also create a zip for distribution
 .\publish.ps1 -NoModel         # do not bundle models (download them in Settings on first run)
 
@@ -233,9 +237,10 @@ The same clip (track 4 of `test/test.mp4`, 10 seconds of Chinese) was recognized
 |---|---|---|
 | full directory | `dist\SubtitleStudio` | 362 MB |
 | full zip | `dist\SubtitleStudio-full.zip` | 184 MB |
-| slim directory | `dist\SubtitleStudio-slim` | 288 MB |
-| slim zip | `dist\SubtitleStudio-slim.zip` | 151 MB |
+| slim directory | `dist\SubtitleStudio-slim` | 101 MB |
+| slim zip | `dist\SubtitleStudio-slim.zip` | 77 MB |
 | installer | `dist\SubtitleStudio-Setup-1.1.0.exe` | 150 MB |
+| source zip | `dist\SubtitleStudio-1.1.0-source.zip` | 0.3 MB |
 
 ### Installer
 
@@ -255,7 +260,7 @@ Size breakdown (full): `tools\ffmpeg` 186 MB + `models` 74 MB + .NET runtime and
 
 ## Usage
 
-1. Put ffmpeg in `tools/ffmpeg/bin/` (or add it to PATH).
+1. Put ffmpeg in `tools/ffmpeg/bin/` (or add it to PATH). The slim build does not ship ffmpeg and prompts you to download it on first launch.
 2. Put models in `models/`, for example `ggml-tiny.bin` / `ggml-medium.bin`.
 3. Open the app → drop in a video → audio tracks are extracted automatically (recognition does not start automatically) → check the tracks to recognize and click “Start recognition” → edit text in the left list and drag blocks on the timeline.
 4. Use the style bar to adjust font color and outline; the preview below updates live.
@@ -310,7 +315,8 @@ During recognition, the title bar shows a **ring progress indicator** (always a 
 ### Playback
 
 “Play” produces actual sound (`NAudio` + ffmpeg first mix the checked tracks into a temporary wav, then play it).
-The playhead follows real progress; click again to pause. If no track is checked, the first track is used.
+The playhead follows real progress; click again to pause. If no track is checked, playback does not start and the status bar asks you to check one.
+Changing the checkboxes (or deleting a track) stops playback and discards the prepared wav; the next Play re-mixes from the new selection.
 This is for preview only; export is independent.
 
 - Decoding/mixing can be cancelled: clicking play again or closing the file stops ffmpeg immediately with no orphan processes.
@@ -320,6 +326,8 @@ This is for preview only; export is independent.
 
 * The red vertical line is the playhead: press/drag on empty timeline space and playback jumps there immediately (even while playing); double-clicking empty space also seeks.
 * Subtitle blocks: drag the middle to move the whole block (changing start/end times), drag the left/right edges to stretch; blocks stop at neighboring subtitles and never overlap.
+* Right-click a subtitle block to delete it; right-click an empty spot in the subtitle lane to add a subtitle at that position (2 seconds by default, clamped so it cannot overlap neighbors).
+* Only one context menu is shown at a time: right-clicking somewhere else closes the previous one, and a left click on the timeline closes it too.
 * Mouse wheel scrolls horizontally, Ctrl+wheel zooms anchored at the mouse position, middle-drag/Alt+left-drag pans, and the `−` / `+` buttons in the title bar also zoom.
 * The subtitle list on the left shows only each subtitle's **midpoint time** (`MM:SS.mm`); edit text directly in the input field on the right.
 

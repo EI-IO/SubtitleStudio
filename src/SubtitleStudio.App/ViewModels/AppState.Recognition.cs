@@ -265,20 +265,24 @@ public sealed partial class AppState
             Status = Loc.T("Status.TrackSummaryMulti", Status, ok, tracks.Count, totalCues);
     }
 
+    /// <summary>新建一条字幕并接上编辑回调（识别结果和手动添加共用）。</summary>
+    private CueItem NewCue(SubtitleCue model)
+    {
+        var item = new CueItem(model);
+        item.Edited += (_, _) =>
+        {
+            NotifyCuesChanged();
+            SchedulePreview();
+        };
+        return item;
+    }
+
     /// <summary>把断句结果填进指定音轨，并接上编辑回调。</summary>
     private void FillTrack(TrackItem track, IEnumerable<SubtitleCue> cues)
     {
         track.Cues.Clear();
         foreach (var cue in cues)
-        {
-            var item = new CueItem(cue);
-            item.Edited += (_, _) =>
-            {
-                NotifyCuesChanged();
-                SchedulePreview();
-            };
-            track.Cues.Add(item);
-        }
+            track.Cues.Add(NewCue(cue));
 
         if (ReferenceEquals(track, SelectedTrack))
         {
@@ -289,6 +293,70 @@ public sealed partial class AppState
 
         // 非选中轨道的字幕也要让时间轴重画
         OnPropertyChanged(nameof(Tracks));
+    }
+
+    /// <summary>
+    /// 在时间轴的空白处新增一条字幕：从点击位置开始，默认 2 秒；
+    /// 后面紧挨着字幕就截到它的开始处，不覆盖已有的块。
+    /// </summary>
+    public CueItem? AddCueAt(double time)
+    {
+        var track = SelectedTrack;
+        if (track is null)
+            return null;
+
+        var limit = Duration > 0 ? Duration : double.MaxValue;
+        var start = Math.Clamp(time, 0, Math.Max(0, limit - 0.1));
+
+        // 点击附近可能紧贴前后字幕：退到前一条结束处，不压到已有的块
+        var previousEnd = track.Cues.Where(c => c.Start < start)
+            .Select(c => c.End)
+            .DefaultIfEmpty(0)
+            .Max();
+        start = Math.Max(start, previousEnd);
+
+        var nextStart = track.Cues.Where(c => c.Start >= start)
+            .Select(c => (double?)c.Start)
+            .Min();
+
+        // 前后只隔了不到 0.1 秒，塞不下最短字幕，放弃这次新增
+        var maxEnd = nextStart ?? limit;
+        if (maxEnd - start < 0.1)
+            return null;
+
+        var end = Math.Max(start + 0.1, Math.Min(start + 2, maxEnd));
+
+        var item = NewCue(new SubtitleCue { Start = start, End = end });
+
+        // 列表和导出都按时间顺序读 Cues，插入时保持有序
+        var index = 0;
+        while (index < track.Cues.Count && track.Cues[index].Start <= start)
+            index++;
+        track.Cues.Insert(index, item);
+
+        SelectedCue = item;
+        NotifyCuesChanged();
+        SchedulePreview();
+        return item;
+    }
+
+    /// <summary>删掉一条字幕（时间轴右键菜单），返回是否真的删掉了。</summary>
+    public bool RemoveCue(CueItem cue)
+    {
+        foreach (var track in Tracks)
+        {
+            if (!track.Cues.Remove(cue))
+                continue;
+
+            if (ReferenceEquals(SelectedCue, cue))
+                SelectedCue = track.Cues.FirstOrDefault(c => c.Start >= cue.Start) ?? track.Cues.LastOrDefault();
+
+            NotifyCuesChanged();
+            SchedulePreview();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>覆盖当前选中音轨的字幕。</summary>
@@ -330,6 +398,8 @@ public sealed partial class AppState
             SelectedCue = SelectedTrack?.Cues.FirstOrDefault();
         }
 
+        // 刚删掉的音轨可能已经混进播放缓存里
+        InvalidatePlaybackMix();
         NotifyCuesChanged();
         SchedulePreview();
         return Tracks.Count;

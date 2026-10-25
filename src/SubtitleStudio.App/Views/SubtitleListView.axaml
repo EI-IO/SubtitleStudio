@@ -23,6 +23,7 @@
             <TextBlock Text="{Binding TimeLabel}" FontSize="10" Foreground="#7F8AA0"
                        VerticalAlignment="Center" FontFamily="Consolas" />
             <TextBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}"
+                     Watermark="{DynamicResource L.SubtitleList.EmptyCue}"
                      FontSize="12" Padding="6,2" MinHeight="0"
                      Background="#232329" BorderThickness="1" BorderBrush="#31313A" />
           </Grid>

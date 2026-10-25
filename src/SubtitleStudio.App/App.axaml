@@ -12,6 +12,16 @@
     <FluentTheme />
     <!-- 调色板是自绘的，没用到 ColorPicker 控件，它的样式与包都不再引入 -->
     <StyleInclude Source="avares://Dock.Avalonia.Themes.Fluent/DockFluentTheme.axaml" />
+
+    <!-- Dock 面板标题上的「▾ 菜单」和「📌 固定」这个工具里用不上，全局隐藏 -->
+    <Style Selector="Button#PART_MenuButton">
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Button#PART_PinButton">
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
   </Application.Styles>
 
 </Application>

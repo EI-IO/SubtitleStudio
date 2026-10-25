@@ -8,25 +8,28 @@ namespace SubtitleStudio.App.Views;
 /// <summary>
 /// Dock 面板标题栏自带「▾ 菜单」和「📌 固定」两个按钮，这个工具里用不上，统一藏掉。
 /// 名字来自 Dock.Avalonia 的控件模板（PART_MenuButton / PART_PinButton）。
+/// 拖出浮动窗、重置布局都会重建模板，所以不能只扫一次，窗口活着的时候持续补扫。
 /// </summary>
 internal static class DockChrome
 {
     private static readonly string[] UnwantedButtons = { "PART_MenuButton", "PART_PinButton" };
 
-    /// <summary>面板是渐进创建出来的，启动后多扫几轮，直到所有标题栏都清理干净。</summary>
-    public static void StartCleanup(Visual root, int rounds = 12, TimeSpan? interval = null)
+    public static void StartCleanup(Window root)
     {
-        var left = rounds;
-        var timer = new DispatcherTimer { Interval = interval ?? TimeSpan.FromMilliseconds(400) };
+        HideUnwantedButtons(root);
 
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) =>
         {
-            HideUnwantedButtons(root);
-
-            if (--left <= 0)
+            // 窗口关掉后不再持有它
+            if (root.GetVisualRoot() is null)
+            {
                 timer.Stop();
-        };
+                return;
+            }
 
+            HideUnwantedButtons(root);
+        };
         timer.Start();
     }
 
@@ -34,8 +37,12 @@ internal static class DockChrome
     {
         foreach (var control in root.GetVisualDescendants().OfType<Control>())
         {
-            if (control.Name is not null && UnwantedButtons.Contains(control.Name))
-                control.IsVisible = false;
+            if (control.Name is null || !UnwantedButtons.Contains(control.Name))
+                continue;
+
+            control.IsVisible = false;
+            control.IsHitTestVisible = false;
+            control.Focusable = false;
         }
     }
 }

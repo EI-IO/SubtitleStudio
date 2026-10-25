@@ -336,6 +336,16 @@ public sealed partial class TimelineControl
 
             context.DrawRectangle(selected ? CueSelectedBrush : CueBrush, CueBorderPen, rect, 3, 3);
 
+            // 选中的块在左右边缘画两条短竖线，提示这里可以拖动改时间
+            if (selected && width > 16)
+            {
+                var handlePen = new Pen(new SolidColorBrush(Color.Parse("#5A3A08")), 1.4);
+                if (x0 >= 0 && x0 <= lane.Width)
+                    context.DrawLine(handlePen, new Point(x0 + 3, rect.Y + 4), new Point(x0 + 3, rect.Bottom - 4));
+                if (x1 >= 0 && x1 <= lane.Width)
+                    context.DrawLine(handlePen, new Point(x1 - 3, rect.Y + 4), new Point(x1 - 3, rect.Bottom - 4));
+            }
+
             if (width > 24)
             {
                 var text = new FormattedText(cue.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,

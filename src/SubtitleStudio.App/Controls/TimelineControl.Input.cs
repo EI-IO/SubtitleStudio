@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using SubtitleStudio.App.Services;
 using SubtitleStudio.App.ViewModels;
@@ -25,9 +26,16 @@ public sealed partial class TimelineControl
     private double _cueStart0;
     private double _cueEnd0;
 
+    private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
+    private static readonly Cursor MoveCursor = new(StandardCursorType.SizeAll);
+    private static readonly Cursor EdgeCursor = new(StandardCursorType.SizeWestEast);
+
     /// <summary>拖动字幕块时的活动范围：不能压到相邻字幕（按下时算好，拖动中别的块不动）。</summary>
     private double _cueMinStart;
     private double _cueMaxEnd;
+
+    /// <summary>当前打开的字幕右键菜单；换位置再右键时先关掉它，避免多个菜单叠在一起。</summary>
+    private ContextMenu? _cueMenu;
 
     /// <summary>当前音轨上被点中的字幕块；顺带告诉调用方是不是抓在边缘。</summary>
     private CueItem? HitTestCue(AppState state, double x, out bool nearEdgeLeft, out bool nearEdgeRight)
@@ -63,12 +71,24 @@ public sealed partial class TimelineControl
         _dragOrigin = pos;
         Focus();
 
+        // 左键/中键按到时间轴上时，右键菜单立即收起来（不等它自己淡出）
+        if (!props.IsRightButtonPressed)
+            _cueMenu?.Close();
+
         // 中键 / Alt+左键：平移时间轴
         if (props.IsMiddleButtonPressed || (props.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Alt)))
         {
             _mode = DragMode.Pan;
             _dragValue = state.ScrollSeconds;
             e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
+        // 右键：字幕块上删除，空白处按点击时间新增
+        if (props.IsRightButtonPressed)
+        {
+            ShowCueMenu(state, pos);
             e.Handled = true;
             return;
         }
@@ -86,6 +106,8 @@ public sealed partial class TimelineControl
             if (rects.Check.Contains(pos))
             {
                 state.Tracks[row].ExportEnabled = !state.Tracks[row].ExportEnabled;
+                // 勾选决定播放/导出包含哪些音轨；已经解码好的混音作废，下次播放重新混
+                state.InvalidatePlaybackMix();
                 InvalidateVisual();
                 e.Handled = true;
                 return;
@@ -137,6 +159,64 @@ public sealed partial class TimelineControl
         e.Handled = true;
     }
 
+    /// <summary>时间轴右键菜单：有字幕就删，没有就按点击位置新建。</summary>
+    private void ShowCueMenu(AppState state, Point pos)
+    {
+        // 只认字幕条：波形和右侧按钮区右键不该冒出新字幕
+        if (!InCueStrip(pos.Y))
+            return;
+
+        var row = RowFromY(pos.Y);
+        if (row < 0 || row >= state.Tracks.Count)
+            return;
+
+        state.SelectTrack(state.Tracks[row]);
+
+        // 同一时间只留一个菜单：程序化 Open 不会自动关掉上一个
+        _cueMenu?.Close();
+
+        var menu = new ContextMenu();
+        if (HitTestCue(state, pos.X, out _, out _) is { } cue)
+        {
+            state.SelectedCue = cue;
+            var delete = new MenuItem { Header = Loc.T("Timeline.DeleteCue") };
+            delete.Click += (_, _) => state.RemoveCue(cue);
+            menu.Items.Add(delete);
+        }
+        else
+        {
+            var time = XToTime(pos.X);
+            var add = new MenuItem { Header = Loc.T("Timeline.AddCue") };
+            add.Click += (_, _) => state.AddCueAt(time);
+            menu.Items.Add(add);
+        }
+
+        _cueMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_cueMenu, menu))
+                _cueMenu = null;
+        };
+        menu.Open(this);
+        InvalidateVisual();
+    }
+
+    /// <summary>字幕块中间显示「移动」光标，左右边缘显示「拉伸」光标。</summary>
+    private void UpdateCueCursor(AppState state, Point pos)
+    {
+        var row = RowFromY(pos.Y);
+        if (row < 0 || row >= state.Tracks.Count
+            || !ReferenceEquals(state.Tracks[row], state.SelectedTrack)
+            || !InCueStrip(pos.Y)
+            || HitTestCue(state, pos.X, out var nearLeft, out var nearRight) is null)
+        {
+            Cursor = ArrowCursor;
+            return;
+        }
+
+        Cursor = nearLeft || nearRight ? EdgeCursor : MoveCursor;
+    }
+
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
@@ -146,12 +226,15 @@ public sealed partial class TimelineControl
             return;
 
         // 悬浮在哪条轨道，决定右边那个导出按钮露不露脸
-        UpdateHover(state, e.GetPosition(this).Y);
+        var pos = e.GetPosition(this);
+        UpdateHover(state, pos.Y);
 
         if (_mode == DragMode.None)
+        {
+            UpdateCueCursor(state, pos);
             return;
+        }
 
-        var pos = e.GetPosition(this);
         switch (_mode)
         {
             case DragMode.Seek:
@@ -191,9 +274,14 @@ public sealed partial class TimelineControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        var hadDrag = _mode != DragMode.None;
         _mode = DragMode.None;
         _dragCue = null;
         e.Pointer.Capture(null);
+
+        // 松手后刻度尺下的时间提示要立刻消失，否则会一直浮在那里
+        if (hadDrag)
+            InvalidateVisual();
     }
 
     /// <summary>删除整条音轨（连同它的字幕），先二次确认。</summary>

@@ -46,6 +46,21 @@ public sealed partial class AppState
         _playback.Dispose();
     }
 
+    /// <summary>勾选音轨变化后，之前混好的 wav 已经不对了：停掉播放并丢弃，下次重新解码。</summary>
+    public void InvalidatePlaybackMix()
+    {
+        // 解码还在进行时也要打断：那次解出来的是旧勾选
+        if (!_playback.IsReady && !IsPlaying && _prepareCts is null)
+            return;
+
+        var wasPlaying = IsPlaying;
+        StopPlayback();
+        _playback.ReleasePrepared();
+
+        if (wasPlaying)
+            Status = Loc.T("Status.PlaySelectionChanged");
+    }
+
     public async Task TogglePlayAsync()
     {
         if (Media is null)

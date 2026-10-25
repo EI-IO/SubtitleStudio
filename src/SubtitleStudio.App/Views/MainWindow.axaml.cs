@@ -81,9 +81,14 @@ public partial class MainWindow : Window
         state.PickFolder = PickFolderAsync;
         state.RevealPath = RevealAsync;
         state.RequestCredentialAsync = backend => SettingsPrompt.EnsureAsync(this, state, backend);
+        state.RequestFfmpegAsync = () => FfmpegSetup.PromptAsync(this);
 
         DockChrome.StartCleanup(this);
         state.Initialize();
+
+        // slim 版不带 ffmpeg：启动就先提醒，避免用户拖进视频后才看到一句报错
+        if (!await FfmpegSetup.PromptAsync(this))
+            state.Status = Loc.T("Status.FfmpegMissing");
 
         if (!string.IsNullOrWhiteSpace(StartupFile))
             UiActions.SafeRun(Loc.T("Error.OpenFile"), () => state.LoadMediaAsync(StartupFile), state);

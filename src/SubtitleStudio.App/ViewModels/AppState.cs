@@ -533,6 +533,9 @@ public sealed partial class AppState : ObservableObject
     public Func<Task<string?>>? PickFolder { get; set; }
     public Func<string, Task>? RevealPath { get; set; }
 
+    /// <summary>缺少 ffmpeg 时由界面弹提示；返回 true 表示用户已经放好文件。</summary>
+    public Func<Task<bool>>? RequestFfmpegAsync { get; set; }
+
     /// <summary>
     /// 预览画布跟着视频真实分辨率走（硬编码 1280×720 的话，预览里的字号和位置跟导出对不上）。
     /// 最长边压到 1920 以内，4K 素材不至于让预览渲染又慢又吃内存；没加载媒体时用 1280×720。

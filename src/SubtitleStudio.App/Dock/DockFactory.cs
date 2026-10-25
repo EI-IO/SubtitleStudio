@@ -55,8 +55,10 @@ public sealed class DockFactory : Factory
         if (tool is null)
             return null;
 
-        // 只禁关闭：拖拽/浮动都放开，拖走的面板才能换位置
+        // 只禁关闭和固定：拖拽/浮动放开，拖走的面板才能换位置。
+        // CanPin=false 让模板不再生成图钉按钮；菜单按钮由 DockChrome 统一隐藏。
         tool.CanClose = false;
+        tool.CanPin = false;
         tool.CanFloat = true;
         tool.CanDrag = true;
         return tool;

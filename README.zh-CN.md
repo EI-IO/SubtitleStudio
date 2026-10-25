@@ -15,7 +15,10 @@
 |---|---|
 | `SubtitleStudio-Setup-x.y.z.exe` | 安装程序：自带 ffmpeg 和 tiny 模型，双击安装；默认装到当前用户目录，不弹 UAC |
 | `SubtitleStudio-full.zip` | 免安装完整版：解压后双击 `SubtitleStudio.exe`，目标机不用装 .NET |
-| `SubtitleStudio-slim.zip` | 精简版：需要 .NET 10 Desktop Runtime，比完整版小约 75 MB |
+| `SubtitleStudio-slim.zip` | 精简版：需要 .NET 10 Desktop Runtime，**不带 ffmpeg**（首次运行会提示下载） |
+
+> **精简版不含 ffmpeg**：首次启动（以及缺 ffmpeg 时打开视频）会弹窗给出官方下载页和 GitHub 镜像；
+> 把 `ffmpeg.exe`、`ffprobe.exe` 放进程序旁的 `tools\ffmpeg\bin`（或加进 PATH）后点「重新检测」即可。
 
 安装版会创建开始菜单快捷方式（安装时可勾选桌面图标），在「设置 → 应用」里卸载。
 用户设置和导入的字体放在 `%LOCALAPPDATA%\SubtitleStudio`，卸载不会删除。
@@ -172,7 +175,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\ui-test.ps1 -Media test\test.mp
 ## 多语言（i18n）
 
 界面文案全部走 `Loc.T("键")`，XAML 用 `{DynamicResource L.键}`，切换语言时整棵界面即时刷新，不需要重启。
-底栏文件名右侧依次是「重置布局」和语言下拉：简体中文 / English，外加「更多语言…」——会重新打开平铺选择窗。
+底栏文件名右侧依次是语言下拉和「重置布局」：简体中文 / English，外加「更多语言…」——会重新打开平铺选择窗。
 第一次运行（还没保存过语言、也没设 `SUBTITLESTUDIO_LANG`）会先弹出平铺选择窗；选过之后不再打扰。
 
 语言包格式（`src/SubtitleStudio.App/Assets/lang/*.json`）：
@@ -222,7 +225,7 @@ JSON 必须是 UTF-8；某条文案缺键时直接显示键名（方便发现漏
 
 ```powershell
 .\publish.ps1                  # full：自包含，目标机不用装 .NET（默认）
-.\publish.ps1 -Mode slim       # slim：框架依赖，要求目标机有 .NET 10 Desktop Runtime
+.\publish.ps1 -Mode slim       # slim：框架依赖，要求目标机有 .NET 10 Desktop Runtime；不打包 ffmpeg
 .\publish.ps1 -Zip             # 额外压一个 zip 方便分发
 .\publish.ps1 -NoModel         # 不打包模型（首次运行在设置里下载）
 
@@ -233,9 +236,10 @@ JSON 必须是 UTF-8；某条文案缺键时直接显示键名（方便发现漏
 |---|---|---|
 | full 目录 | `dist\SubtitleStudio` | 362 MB |
 | full zip | `dist\SubtitleStudio-full.zip` | 184 MB |
-| slim 目录 | `dist\SubtitleStudio-slim` | 288 MB |
-| slim zip | `dist\SubtitleStudio-slim.zip` | 151 MB |
+| slim 目录 | `dist\SubtitleStudio-slim` | 101 MB |
+| slim zip | `dist\SubtitleStudio-slim.zip` | 77 MB |
 | 安装程序 | `dist\SubtitleStudio-Setup-1.1.0.exe` | 150 MB |
+| 源码包 | `dist\SubtitleStudio-1.1.0-source.zip` | 0.3 MB |
 
 ### 安装程序
 
@@ -249,13 +253,13 @@ JSON 必须是 UTF-8；某条文案缺键时直接显示键名（方便发现漏
 体积构成（full）：`tools\ffmpeg` 186 MB + `models` 74 MB + .NET 运行时与程序 101 MB。
 
 - **ffmpeg 是最大头**：用的是 shared 版（`ffmpeg.exe` + `avcodec/avformat/avfilter/...` 一组 DLL）。换成只带所需编解码器的自编译版本可以压到 20–30 MB，代价是失去一部分输入格式的解码能力（当前构建几乎什么都能读）。
-- **想再小**：`-Mode slim` 直接省掉 74 MB 的运行时；`-NoModel` 再省 74 MB 的模型。
+- **想再小**：`-Mode slim` 省掉 74 MB 运行时，同时不再打包约 186 MB 的 ffmpeg；`-NoModel` 再省 74 MB 的模型。
 - 打包会顺手删掉 `createdump.exe`、`Microsoft.DiaSymReader.Native`、`*.pdb` 等只在调试期有用的文件，`runtimes` 下非 `win-x64` 的平台产物，以及 win-x64 用不到的 Avalonia 后端（X11 / FreeDesktop / macOS Native、设计器远程协议）。`Avalonia.Metal.dll` 名字像 macOS 后端，但 Windows 上的 Skia 渲染也引用它，必须保留；删掉后窗口只画得出标题栏、客户区不再重绘，看起来像「窗口变透明」。
 - 调色板是自绘的，没有引入 `Avalonia.Controls.ColorPicker` 包；预览播放的临时 wav 在进程被强杀后会残留，程序每次启动会清理一天前的旧文件，避免安装目录越用越大。
 
 ## 使用
 
-1. 把 ffmpeg 放到 `tools/ffmpeg/bin/`（或加进 PATH）。
+1. 把 ffmpeg 放到 `tools/ffmpeg/bin/`（或加进 PATH）；精简版没带 ffmpeg，首次启动会弹下载提示。
 2. 把模型放到 `models/`，例如 `ggml-tiny.bin` / `ggml-medium.bin`。
 3. 打开应用 → 拖入视频 → 自动抽音轨（不自动识别）→ 勾好要识别的音轨后点「开始识别」→ 左侧列表改字、时间轴拖块。
 4. 样式条调字体颜色描边，下方预览实时看效果。
@@ -313,7 +317,8 @@ JSON 必须是 UTF-8；某条文案缺键时直接显示键名（方便发现漏
 ### 播放
 
 点「播放」会真的出声（`NAudio` + ffmpeg 先把勾选的音轨混成一个临时 wav，再播放），
-播放头跟着真实进度走，再点一下暂停。没有勾选任何轨道时默认放第一条。
+播放头跟着真实进度走，再点一下暂停。没有勾选任何轨道时不会开始播放，状态栏会提示先勾一条。
+播放中改勾选或删除音轨会停掉播放并丢弃已混好的临时 wav，下次播放按新勾选重混。
 纯预览用，导出与它无关。
 
 - 解码/混流这一步可以取消：再点播放或关闭文件会立刻停掉 ffmpeg，不会残留进程。
@@ -325,6 +330,8 @@ JSON 必须是 UTF-8；某条文案缺键时直接显示键名（方便发现漏
 * 红色竖线就是播放头：在时间轴空白处按下/拖动，播放位置立刻跟过去（播放中也一样），
   双击空白处也可以直接跳转。
 * 字幕块：拖中间移动整块（改起止时间），拖左右边缘拉伸；拖到相邻字幕边上会夹住，不会重叠。
+* 右键字幕块 = 删除这条字幕；右键字幕条空白处 = 在点击位置新增一条（默认 2 秒，遇到相邻字幕自动夹住不重叠）。
+* 同一时间只显示一个右键菜单：换位置再右键会先关掉旧的，左键点时间轴也会关掉。
 * 滚轮横向滚动，Ctrl+滚轮以鼠标位置为锚点缩放，中键/Alt+左键平移，标题栏的 `−` / `+` 也能缩放。
 * 左侧字幕列表只显示每条字幕的**中点时间**（`MM:SS.mm`），改字直接在右边的输入框里打。
 

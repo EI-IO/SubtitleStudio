@@ -22,6 +22,13 @@ public sealed partial class AppState
 
         try
         {
+            // slim 版不带 ffmpeg：先给一次安装/下载提示，用户放好后继续
+            if (!FfmpegTools.Available && RequestFfmpegAsync is { } ask && !await ask())
+            {
+                Status = Loc.T("Status.FfmpegMissing");
+                return;
+            }
+
             IsBusy = true;
             BusyText = Loc.T("Busy.ReadingMedia");
             Progress = 0;

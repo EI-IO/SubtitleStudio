@@ -11,18 +11,15 @@
 
   <DockPanel>
 
-    <!-- 底部状态条：文件名 / 重置布局 / 语言 / 错误 / 进度 / 识别模型 -->
+    <!-- 底部状态条：文件名 / 语言 / 重置布局 / 错误 / 进度 / 识别模型 -->
     <Border DockPanel.Dock="Bottom" Background="#1C1C21" Padding="12,4" BorderBrush="#2A2A31" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
         <TextBlock Text="{Binding MediaTitle}" Foreground="#7F8798"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" />
 
-        <!-- 面板被拖乱了一键还原默认四区，紧挨文件名放在左侧 -->
-        <Button Grid.Column="1" Content="{DynamicResource L.Button.ResetLayout}" FontSize="11" Padding="8,1" Margin="14,0,0,0"
-                VerticalAlignment="Center" Click="OnResetLayoutClick"
-                ToolTip.Tip="{DynamicResource L.Tip.ResetLayout}" />
-        <ComboBox Grid.Column="2" x:Name="LanguageBox" FontSize="11" Padding="7,1" Height="22"
-                  MinWidth="96" Margin="8,0,12,0" VerticalAlignment="Center"
+        <!-- 语言切换放在文件名后面；面板被拖乱时再从旁边一键还原默认四区 -->
+        <ComboBox Grid.Column="1" x:Name="LanguageBox" FontSize="11" Padding="7,1" Height="22"
+                  MinWidth="96" Margin="14,0,0,0" VerticalAlignment="Center"
                   AutomationProperties.Name="LanguageBox"
                   SelectionChanged="OnLanguageChanged"
                   ToolTip.Tip="{DynamicResource L.Language.Tooltip}">
@@ -32,6 +29,9 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
+        <Button Grid.Column="2" Content="{DynamicResource L.Button.ResetLayout}" FontSize="11" Padding="8,1" Margin="8,0,12,0"
+                VerticalAlignment="Center" Click="OnResetLayoutClick"
+                ToolTip.Tip="{DynamicResource L.Tip.ResetLayout}" />
 
         <Panel Grid.Column="3" Margin="0,0,12,0" VerticalAlignment="Center">
           <Border Background="#3A1B1B" BorderBrush="#6B2B2B" BorderThickness="1" CornerRadius="3"

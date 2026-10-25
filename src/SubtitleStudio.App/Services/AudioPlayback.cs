@@ -42,42 +42,50 @@ public sealed class AudioPlayback : IDisposable
 
         var indexes = streamIndexes.Count > 0 ? streamIndexes : new[] { 0 };
         var temp = TempWorkspace.CreateFilePath(mediaPath, ".play.wav");
+        var adopted = false;
 
-        var args = new List<string>
+        try
         {
-            "-hide_banner", "-y", "-i", mediaPath
-        };
+            var args = new List<string>
+            {
+                "-hide_banner", "-y", "-i", mediaPath
+            };
 
-        // -t 放在输出选项里：只解前 maxSeconds 秒
-        if (maxSeconds is { } cap && cap > 0)
-            args.AddRange(new[] { "-t", cap.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) });
+            // -t 放在输出选项里：只解前 maxSeconds 秒
+            if (maxSeconds is { } cap && cap > 0)
+                args.AddRange(new[] { "-t", cap.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) });
 
-        if (indexes.Count == 1)
-        {
-            args.AddRange(new[] { "-map", $"0:{indexes[0]}", "-vn" });
+            if (indexes.Count == 1)
+            {
+                args.AddRange(new[] { "-map", $"0:{indexes[0]}", "-vn" });
+            }
+            else
+            {
+                var inputs = string.Concat(indexes.Select(i => $"[0:{i}]"));
+                var filter = $"{inputs}amix=inputs={indexes.Count}:duration=longest:normalize=0[a]";
+                args.AddRange(new[] { "-filter_complex", filter, "-map", "[a]" });
+            }
+
+            args.AddRange(new[] { "-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", temp });
+
+            var ffmpeg = FfmpegTools.FfmpegPath
+                         ?? throw new InvalidOperationException(Loc.T("Error.FfmpegMissing"));
+            var (code, stderr) = await FfmpegTools.RunAsync(ffmpeg, args, cancellationToken);
+            if (code != 0 || !File.Exists(temp))
+                throw new InvalidOperationException(Loc.T("Error.OpenAudio", ProcessText.Tail(stderr)));
+
+            _tempWav = temp;
+            _reader = new AudioFileReader(temp);
+            _output = new WaveOutEvent { DesiredLatency = 120 };
+            _output.Init(_reader);
+            adopted = true;
         }
-        else
+        finally
         {
-            var inputs = string.Concat(indexes.Select(i => $"[0:{i}]"));
-            var filter = $"{inputs}amix=inputs={indexes.Count}:duration=longest:normalize=0[a]";
-            args.AddRange(new[] { "-filter_complex", filter, "-map", "[a]" });
+            // 取消（勾选变了/换文件）时 ffmpeg 可能已经写出了半个 wav，不能留在临时目录里
+            if (!adopted)
+                TempWorkspace.TryDelete(temp);
         }
-
-        args.AddRange(new[] { "-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", temp });
-
-        var ffmpeg = FfmpegTools.FfmpegPath
-                     ?? throw new InvalidOperationException(Loc.T("Error.FfmpegMissing"));
-        var (code, stderr) = await FfmpegTools.RunAsync(ffmpeg, args, cancellationToken);
-        if (code != 0 || !File.Exists(temp))
-        {
-            TempWorkspace.TryDelete(temp);
-            throw new InvalidOperationException(Loc.T("Error.OpenAudio", ProcessText.Tail(stderr)));
-        }
-
-        _tempWav = temp;
-        _reader = new AudioFileReader(temp);
-        _output = new WaveOutEvent { DesiredLatency = 120 };
-        _output.Init(_reader);
     }
 
     public void Play()
@@ -92,6 +100,13 @@ public sealed class AudioPlayback : IDisposable
     }
 
     public void Pause() => _output?.Pause();
+
+    /// <summary>丢掉已经解码好的混音（音轨勾选变了），下次播放按新选择重新解码。</summary>
+    public void ReleasePrepared()
+    {
+        Stop();
+        Release();
+    }
 
     public void Stop()
     {
