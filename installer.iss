@@ -1,11 +1,11 @@
 ﻿; Subtitle Studio 安装程序（Inno Setup 6.5+）
 ; 用法：先运行 .\publish.ps1 生成发布目录，再运行 .\installer.ps1 [-Mode slim]
-; 也可直接：iscc.exe /DAppVersion=1.1.0 installer.iss
+; 也可直接：iscc.exe /DAppVersion=1.1.2 installer.iss
 ;
 ; 完整版与 slim 版共用同一个 AppId（升级/卸载识别码），因此两者可以互相覆盖升级。
 
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.1.2"
 #endif
 
 #ifndef SourceDir

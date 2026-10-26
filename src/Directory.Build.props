@@ -8,7 +8,7 @@
     <LangVersion>latest</LangVersion>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
-    <Version>1.1.0</Version>
+    <Version>1.1.2</Version>
     <Product>Subtitle Studio</Product>
     <Company>Subtitle Studio</Company>
     <NeutralLanguage>zh-Hans</NeutralLanguage>
