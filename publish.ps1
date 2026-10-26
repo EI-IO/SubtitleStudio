@@ -1,8 +1,8 @@
 ﻿# 打包成可直接双击运行的目录：dist\SubtitleStudio\
-#   full（默认）：自包含，目标机不需要装 .NET，并附带 ffmpeg
-#   -Mode slim：框架依赖，需要目标机装 .NET 10 Desktop Runtime；不带 ffmpeg，
-#               首次启动会提示用户安装或从官方/镜像下载（体积最小）
-#   加 -Zip 额外压一个 zip；加 -NoModel 不打包模型（首次运行在「设置 → 本地模型」里下载）
+#   full（默认）：自包含，目标机不需要装 .NET
+#   -Mode slim：框架依赖，需要目标机装 .NET 10 Desktop Runtime
+#   两种模式都附带 ffmpeg；加 -Zip 额外压一个 zip；
+#   加 -NoModel 不打包模型（首次运行在「设置 → 本地模型」里下载）
 #
 # 运行前需要把 ffmpeg 放到 tools\ffmpeg\bin\（ffmpeg.exe + ffprobe.exe + 依赖 dll）。
 
@@ -90,18 +90,13 @@ foreach ($proj in @($app, $cli)) {
 }
 
 # 运行时资源：ffmpeg 与模型，让装好的目录开箱即用。
-# slim 是「最小体积」版本，故意不带 ffmpeg：首次启动由程序提示安装或从官方/镜像下载。
 $ffmpegBin = Join-Path $root 'tools\ffmpeg\bin'
-if ($Mode -ne 'slim') {
-    if (Test-Path $ffmpegBin) {
-        $toolsDst = Join-Path $dist 'tools\ffmpeg\bin'
-        New-Item -ItemType Directory -Force -Path $toolsDst | Out-Null
-        Copy-Item (Join-Path $ffmpegBin '*') $toolsDst -Force
-    } else {
-        Write-Warning "没找到 tools\ffmpeg\bin，发布目录里不带 ffmpeg，运行前需要自己放进去。"
-    }
+if (Test-Path $ffmpegBin) {
+    $toolsDst = Join-Path $dist 'tools\ffmpeg\bin'
+    New-Item -ItemType Directory -Force -Path $toolsDst | Out-Null
+    Copy-Item (Join-Path $ffmpegBin '*') $toolsDst -Force
 } else {
-    Write-Host "slim 版不打包 ffmpeg（首次启动会提示安装或下载）"
+    Write-Warning "没找到 tools\ffmpeg\bin，发布目录里不带 ffmpeg，运行前需要自己放进去。"
 }
 
 $modelsSrc = Join-Path $root 'models'
@@ -155,5 +150,4 @@ if ($selfContained) {
     Write-Host "双击 dist\SubtitleStudio\SubtitleStudio.exe 即可运行（自包含，无需安装 .NET）"
 } else {
     Write-Host "slim 版需要目标机装 .NET 10 Desktop Runtime：https://dotnet.microsoft.com/download/dotnet/10.0"
-    Write-Host "slim 版不带 ffmpeg，首次启动会提示从官方源或镜像源下载"
 }

@@ -22,15 +22,15 @@
 | 包 | 说明 |
 |---|---|
 | `SubtitleStudio-Setup-x.y.z.exe` | 推荐。安装后自带本地模型和播放、导出所需组件，装完即用。 |
-| `SubtitleStudio-Slim-Setup-x.y.z.exe` | 体积更小的安装包。需要 .NET 10 桌面运行时，首次使用时下载 ffmpeg。 |
+| `SubtitleStudio-Slim-Setup-x.y.z.exe` | 体积更小的安装包。需要 .NET 10 桌面运行时。 |
 | `SubtitleStudio-full.zip` | 免安装完整版。解压后双击 `SubtitleStudio.exe`，不需要安装。 |
-| `SubtitleStudio-slim.zip` | 免安装精简版。需要 .NET 10 桌面运行时，首次使用时下载 ffmpeg。 |
+| `SubtitleStudio-slim.zip` | 免安装精简版。需要 .NET 10 桌面运行时。 |
 
 - 支持 Windows 10 / 11 64 位。
 - 安装程序默认只给当前用户安装，不需要管理员权限。会创建开始菜单快捷方式，桌面图标可选；卸载在「设置 → 应用」里进行。
 - 卸载不会删除你的设置和导入的字体。
 - 安装包没有代码签名，首次运行时 SmartScreen 可能提示风险，点「更多信息 → 仍要运行」即可。
-- 精简版需要先安装 [.NET 10 桌面运行时](https://dotnet.microsoft.com/download/dotnet/10.0)。精简版不带 ffmpeg：首次启动时会弹窗给出官方下载页和镜像下载地址，并显示应该放进哪个文件夹；放好后点「重新检测」。
+- 精简版需要先安装 [.NET 10 桌面运行时](https://dotnet.microsoft.com/download/dotnet/10.0)。所有发行包都已附带 ffmpeg。
 
 ## 快速上手
 
@@ -166,7 +166,7 @@
 - **程序意外退出**：详细信息会写入用户设置目录里的 `crash.log`，反馈问题时可以附上。
 - **无法保存设置或导出**：如果是权限原因，软件会提供「以管理员重启」。
 - **SmartScreen 提示**：安装包没有签名，点「更多信息 → 仍要运行」即可。
-- **精简版提示缺少 ffmpeg**：用弹窗里的下载链接下载，把文件放进弹窗显示的文件夹（或把 ffmpeg 加进 PATH），然后点「重新检测」。
+- **软件提示缺少 ffmpeg**：用弹窗里的下载链接下载，把文件放进弹窗显示的文件夹（或把 ffmpeg 加进 PATH），然后点「重新检测」。
 - **MP4 没有透明效果**：MP4/H.264 不支持透明通道，请改用 WebM 或 MOV。
 
 ## 已知限制

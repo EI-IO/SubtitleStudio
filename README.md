@@ -22,15 +22,15 @@ The Releases page offers four packages:
 | Package | What it is |
 |---|---|
 | `SubtitleStudio-Setup-x.y.z.exe` | Recommended. Installs the app with a local model and everything needed to play and export video. |
-| `SubtitleStudio-Slim-Setup-x.y.z.exe` | Smaller installer. Requires the .NET 10 Desktop Runtime and downloads ffmpeg on first use. |
+| `SubtitleStudio-Slim-Setup-x.y.z.exe` | Smaller installer. Requires the .NET 10 Desktop Runtime. |
 | `SubtitleStudio-full.zip` | Portable full version. Unzip and run `SubtitleStudio.exe`; no installation needed. |
-| `SubtitleStudio-slim.zip` | Portable slim version. Requires the .NET 10 Desktop Runtime and downloads ffmpeg on first use. |
+| `SubtitleStudio-slim.zip` | Portable slim version. Requires the .NET 10 Desktop Runtime. |
 
 - Windows 10 or 11, 64-bit.
 - The installer is per-user by default and does not require administrator rights. It creates a Start menu shortcut; a desktop icon is optional. Uninstall from **Settings → Apps**.
 - Your settings and imported fonts are kept when you uninstall.
 - The installer is not code-signed, so Windows SmartScreen may warn on first launch. Choose **More info → Run anyway**.
-- The slim packages need the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). They do not include ffmpeg: on first launch the app offers the official download page and a mirror, shows the folder to use, and checks again when you click **Recheck**.
+- The slim packages need the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). All packages include ffmpeg.
 
 ## Quick start
 
@@ -166,7 +166,7 @@ On first launch the app asks you to choose a language; after that it remembers y
 - **Unexpected crash:** details are written to `crash.log` in the app's user settings folder so the problem can be reported.
 - **Cannot write settings or exports:** if permissions are the cause, the app offers to restart with administrator rights.
 - **SmartScreen warning:** the installers are unsigned; choose **More info → Run anyway**.
-- **Slim version says ffmpeg is missing:** use the download links in the dialog, put the files in the folder shown there (or add ffmpeg to PATH), then click **Recheck**.
+- **The app says ffmpeg is missing:** use the download links in the dialog, put the files in the folder shown there (or add ffmpeg to PATH), then click **Recheck**.
 - **No transparency in MP4:** MP4/H.264 does not support an alpha channel. Use WebM or MOV for overlays.
 
 ## Known limitations

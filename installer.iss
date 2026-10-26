@@ -27,9 +27,9 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
-; slim 不带 .NET 运行时和 ffmpeg，安装说明里要写清楚额外依赖
+; slim 不带 .NET 运行时，安装说明里要写清楚额外依赖
 #ifdef IsSlim
-AppComments=Extract audio from video, create editable subtitles, and export alpha overlay videos or subtitle files. Requires .NET 10 Desktop Runtime; ffmpeg is downloaded on first launch.
+AppComments=Extract audio from video, create editable subtitles, and export alpha overlay videos or subtitle files. Requires .NET 10 Desktop Runtime.
 #else
 AppComments=Extract audio from video, create editable subtitles, and export alpha overlay videos or subtitle files
 #endif
